@@ -1,0 +1,59 @@
+name: Signaler un problème
+description: Capture webcam, chargement de modèle ou accélération CUDA / ROCm.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Étapes pour reproduire
+      description: Indique la commande utilisée et les actions dans la fenêtre.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Résultat observé et résultat attendu
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Système
+      options:
+        - Windows
+        - Linux
+        - Autre
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: GPU / processeur
+      placeholder: Ryzen AI 9 HX470, RTX 4090, CPU…
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Modèle
+      options:
+        - smol
+        - qwen-0.8b
+        - qwen-2b
+        - minicpm
+        - lfm-450m
+        - lfm-1.6b
+        - lfm-3b
+        - fastvlm
+    validations:
+      required: true
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Python, PyTorch, Transformers, CUDA ou ROCm et pilote GPU.
+  - type: textarea
+    id: error
+    attributes:
+      label: Message d'erreur
+      render: text

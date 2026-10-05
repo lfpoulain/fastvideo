@@ -1,0 +1,7 @@
+torch>=2.8
+torchvision>=0.23
+transformers==5.18.0
+opencv-python>=4.10
+Pillow>=10
+timm==1.0.20
+num2words>=0.5.14

@@ -1,0 +1,81 @@
+# Validation et mesures
+
+[← Retour au README](../README.md)
+
+Dernière validation matérielle : **5 octobre 2026**.
+
+## Configuration testée
+
+| Composant | Configuration |
+| --- | --- |
+| Système | Windows |
+| GPU | NVIDIA GeForce RTX 4090, 24 Go |
+| Python | 3.12.10 |
+| PyTorch | 2.11.0+cu128 |
+| Transformers | 5.18.0 |
+| Attention | SDPA |
+| Précisions vérifiées | BF16 et FP16 |
+
+## Vérifications effectuées
+
+Les huit modèles ont été chargés depuis leurs révisions fixées et ont généré une
+réponse non vide sur une image synthétique. Les sept modèles natifs ont également
+été utilisés avec deux images. L'arrêt avant génération et la libération de la
+mémoire après changement de modèle ont été vérifiés.
+
+La capture a été testée avec une vraie webcam. Les commandes Tkinter ont été
+exercées depuis Python : huit choix, analyse locale, pause, changement pendant
+l'inférence, rejet d'un ancien résultat, fermeture et réouverture de la caméra.
+Le rendu visuel de la fenêtre n'a pas fait l'objet d'une inspection manuelle.
+
+## Repères observés sur RTX 4090
+
+Image RGB 640 × 480 contenant un carré rouge, un cercle bleu et du texte.
+Consigne : décrire les formes et leurs couleurs en une phrase en français.
+Limite : 48 nouveaux tokens, génération déterministe, une image, BF16.
+Le temps ci-dessous est celui de la seconde génération, après chargement et
+première inférence. Il inclut le prétraitement et la génération ; le GPU est
+synchronisé autour de la mesure.
+
+| Modèle | Temps observé | Mémoire allouée après chargement |
+| --- | ---: | ---: |
+| SmolVLM2 500M | 0,72 s | 0,96 Gio |
+| Qwen3.5 0,8B | 0,65 s | 1,63 Gio |
+| Qwen3.5 2B | 1,01 s | 4,13 Gio |
+| MiniCPM-V 4.6 | 0,79 s | 2,47 Gio |
+| LFM2.5-VL 450M | 0,23 s | 0,85 Gio |
+| LFM2.5-VL 1,6B | 0,25 s | 2,99 Gio |
+| LFM2.5-VL 3B | 0,32 s | 5,84 Gio |
+| FastVLM 0,5B | 1,34 s | 1,18 Gio |
+
+Il s'agit d'une mesure unique par modèle. Les réponses ont des longueurs différentes.
+Les valeurs ne donnent ni un débit à longueur égale, ni un score de qualité.
+La mémoire indique l'allocation PyTorch après chargement, hors pic d'inférence.
+Les images réelles, la consigne et le nombre de tokens influencent la latence.
+
+## Reproduire la vérification des modèles
+
+Après installation des dépendances de l'app :
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_models.py
+.\.venv\Scripts\python.exe tools/verify_models.py --precision fp16 --offline
+```
+
+Le script construit son image de test, vérifie les réponses et écrit un rapport JSON
+dans `artifacts/`. Il peut télécharger plusieurs gigaoctets au premier passage.
+Pour tester un seul modèle :
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_models.py --models lfm-450m
+```
+
+Les tests automatiques GitHub vérifient le code, le choix du runtime et la capture
+avec une caméra simulée. Ils s'exécutent sur Windows et Linux sans charger les modèles.
+
+## AMD HX470
+
+Le choix ROCm et ses erreurs de configuration ont été testés avec des runtimes simulés.
+Les huit modèles ont aussi été exécutés en FP16 sur NVIDIA, la précision choisie pour ROCm.
+Les kernels ROCm et les performances du HX470 restent à valider sur un PC AMD.
+Le [guide d'installation](installation.md#amd) fournit le point de départ.

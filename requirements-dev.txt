@@ -1,0 +1,4 @@
+# Les tests automatiques n'ont besoin ni de PyTorch ni des poids des modèles.
+ruff==0.15.0
+opencv-python>=4.10
+Pillow>=10

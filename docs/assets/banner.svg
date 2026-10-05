@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="title desc">
+  <title id="title">FastVideo — Local vision. Live webcam.</title>
+  <desc id="desc">Bannière vert foncé et crème avec une caméra et un flux de données vers un modèle local.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#122b24"/>
+      <stop offset="1" stop-color="#081b17"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#b4e2c1" stroke-opacity=".06"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="360" rx="24" fill="url(#background)"/>
+  <rect width="1280" height="360" rx="24" fill="url(#grid)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="58" y="48" width="164" height="30" rx="15" fill="#224b3b"/>
+    <circle cx="76" cy="63" r="4" fill="#b6f2a8"/>
+    <text x="89" y="68" font-size="12" font-weight="700" letter-spacing="1.2" fill="#d5edcf">100% LOCAL</text>
+    <text x="54" y="168" font-size="82" font-weight="700" letter-spacing="-3" fill="#f5f3e8">FastVideo</text>
+    <text x="58" y="214" font-size="26" fill="#c5decf">Local vision. Live webcam.</text>
+    <text x="59" y="252" font-size="16" fill="#8caf9f">Python · 8 vision models · AMD ROCm · NVIDIA CUDA</text>
+    <path d="M59 296H108" stroke="#b6f2a8" stroke-width="4" stroke-linecap="round"/>
+    <text x="123" y="301" font-size="13" letter-spacing="1.7" fill="#a6cbb7">ONE CAMERA. YOUR GPU.</text>
+  </g>
+  <g transform="translate(788 67)">
+    <rect x="0" y="43" width="167" height="141" rx="26" fill="#19392e" stroke="#587a64" stroke-width="2"/>
+    <rect x="24" y="25" width="77" height="28" rx="10" fill="#19392e" stroke="#587a64" stroke-width="2"/>
+    <circle cx="83" cy="114" r="41" fill="#102a20" stroke="#b0e5a0" stroke-width="3"/>
+    <circle cx="83" cy="114" r="25" fill="#244b35" stroke="#588369" stroke-width="2"/>
+    <circle cx="90" cy="106" r="9" fill="#b0e5a0" fill-opacity=".7"/>
+    <circle cx="139" cy="66" r="5" fill="#c8efaa"/>
+    <path d="M177 114H214" stroke="#b6f2a8" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 9"/>
+    <path d="M207 107L214 114L207 121" fill="none" stroke="#c8efaa" stroke-width="2"/>
+    <rect x="230" y="35" width="145" height="158" rx="22" fill="#1d402e" stroke="#6c9876" stroke-width="2"/>
+    <path d="M252 77H312M252 96H348M252 115H327" stroke="#badfa8" stroke-width="5" stroke-linecap="round"/>
+    <rect x="252" y="141" width="67" height="25" rx="12" fill="#315a3b"/>
+    <text x="265" y="158" fill="#d8f5ba" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">VISION</text>
+    <path d="M253 214H266M282 214H295M311 214H324M340 214H353" stroke="#5b8167" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>
