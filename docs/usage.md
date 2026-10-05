@@ -31,6 +31,30 @@ longueur maximale de la réponse pendant l'utilisation. Les nouvelles valeurs
 s'appliquent à l'analyse suivante. Quatre consignes prêtes à l'emploi sont proposées,
 et le texte reste librement modifiable. Le panneau défile si la fenêtre est réduite.
 
+### Résolution et FPS de la webcam
+
+Choisis **1920x1080** et **25 FPS** dans le panneau de gauche (valeurs par défaut).
+Les choix vont de 640×480 à 3840×2160, avec une cadence demandée de 1 à 60 FPS.
+Clique sur **Appliquer à la webcam** si elle est déjà ouverte : le flux est
+réouvert avec les nouveaux réglages, le modèle chargé est conservé et l'analyse
+en direct reprend si elle était active.
+
+Le format **auto** essaie MJPG en HD pour réduire la bande passante USB.
+Tu peux choisir explicitement `mjpg` ou `yuy2` selon ta webcam. Les modes réellement
+disponibles dépendent du matériel et du pilote. Sous le flux et dans les logs,
+FastVideo affiche la résolution reçue, les FPS annoncés par le pilote et le codec ;
+le compteur **Caméra** affiche les FPS réellement mesurés. Un mode refusé est signalé.
+Voir les [propriétés de capture OpenCV](https://docs.opencv.org/4.x/d4/d15/group__videoio__flags__base.html).
+
+Le bouton **Agrandir** ouvre un aperçu séparé, redimensionnable. **F11** bascule
+cet aperçu en plein écran et **Échap** le ferme. La case **Miroir** ne modifie que
+l'affichage. Le flux reste en haute résolution ; les images destinées au modèle
+sont réduites à 640×480 au maximum pour préserver la latence.
+
+```powershell
+.\.venv\Scripts\python.exe app.py --capture-resolution 1920x1080 --capture-fps 25
+```
+
 ### Vitesse et téléchargement
 
 - **Caméra** : FPS mesurés à partir des images reçues pendant les deux dernières secondes.
@@ -71,6 +95,9 @@ Exemples de consignes :
 | --- | --- | --- |
 | `--model` | `smol` | Choix initial du modèle ; il reste modifiable dans la fenêtre. |
 | `--camera` | `0` | Numéro de webcam, de 0 à 9. |
+| `--capture-resolution` | `1920x1080` | Résolution demandée au flux webcam, de 640×480 à 3840×2160. |
+| `--capture-fps` | `25` | FPS demandés à la webcam, de 1 à 60. |
+| `--capture-format` | `auto` | `auto` (essaie MJPG en HD), `mjpg` ou `yuy2`. |
 | `--device` | `auto` | `auto`, `cuda`, `rocm` ou `cpu`. |
 | `--interval` | `2` | Délai minimum entre les départs des analyses, de 0,5 à 30 secondes. |
 | `--frames` | `1` | Jusqu'à 3 images récentes ; FastVLM et Moondream utilisent la dernière. |
@@ -140,6 +167,15 @@ est plafonnée et MiniCPM utilise une seule vue avec un downsampling de 16×.
 | Mémoire GPU insuffisante | Essaie SmolVLM2 ou LFM 450M, une image et une réponse courte ; ferme les autres tâches GPU. |
 | `tkinter` absent sous Linux | Installe Tk pour la version de Python utilisée. |
 | Description approximative ou mauvaise langue | Essaie une consigne plus précise ou un autre modèle. La qualité dépend du modèle et de la scène. |
+| Avertissement ROCm SDPA expérimental | Le modèle peut continuer via un chemin de référence. Compare plusieurs analyses après le démarrage. |
+| Avertissement `causal_conv1d` absent | Transformers utilise les opérations PyTorch de référence, fonctionnelles mais plus lentes. Voir les [prérequis officiels du kernel](https://github.com/Dao-AILab/causal-conv1d). |
+
+Le flag `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` mentionné par PyTorch active
+des chemins AMD expérimentaux. FastVideo conserve le réglage courant : ce mode
+reste à comparer sur ton GPU et ta distribution ROCm. Un avertissement de kernel
+ne signifie pas que la génération a échoué ; vérifie les réponses et les temps
+suivants. Les poids et kernels initialisés au premier passage peuvent expliquer
+une première analyse plus lente, sans constituer un diagnostic certain.
 
 Les réponses des modèles peuvent contenir des erreurs. Les mesures publiées décrivent
 une vérification d'exécution sur une image synthétique ; elles ne mesurent pas la

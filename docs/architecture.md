@@ -31,9 +31,13 @@ dans cette file. Les mises à jour de téléchargement sont limitées à cinq pa
 
 ## Images et cadence
 
-La capture demande 640 × 480 à 30 images/s. Si la caméra fournit une résolution
-supérieure, les images sont réduites en conservant leurs proportions.
-L'aperçu est affiché en miroir ; l'inférence reçoit l'image dans son orientation originale.
+La capture demande par défaut 1920 × 1080 à 25 images/s ; résolution, cadence et
+format USB sont réglables. Le pilote peut choisir un autre mode : la taille de
+la première image reçue et les propriétés annoncées sont remontées à l'interface.
+La dernière image est conservée en pleine résolution pour les aperçus principal
+et agrandi. Seuls les snapshots destinés au modèle et les échantillons historiques
+sont réduits à 640×480 au maximum, en conservant leurs proportions.
+L'affichage peut être en miroir ; l'inférence reçoit l'orientation originale.
 
 L'historique contient au maximum trois échantillons. Une analyse utilise la dernière
 image et, si demandé, jusqu'à deux images plus anciennes. Les échantillons expirent

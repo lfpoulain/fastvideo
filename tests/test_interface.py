@@ -30,6 +30,7 @@ class InterfaceTests(unittest.TestCase):
             app = App(root, args)
             try:
                 root.geometry("1140x780+30+30")
+                root.attributes("-topmost", True)
                 root.deiconify()
                 root.update()
                 root.tk.call("ttk::combobox::Post", str(app.model_input))

@@ -22,6 +22,7 @@ L'app utilise Tkinter, OpenCV et PyTorch, avec détection automatique de **CUDA,
 ## Ce que tu peux faire
 
 - Afficher une webcam et obtenir des descriptions actualisées en français.
+- Choisir la capture HD / Full HD / 4K et les FPS (1080p à 25 FPS par défaut), avec aperçu agrandi.
 - Passer de SmolVLM2 à Qwen, MiniCPM, LFM, FastVLM ou Moondream dans la même fenêtre.
 - Modifier la consigne et la fréquence des analyses, puis mettre l'IA en pause.
 - Comparer jusqu'à trois images récentes pour observer les changements visibles.
@@ -142,7 +143,8 @@ Voir [toutes les options et le dépannage](docs/usage.md).
 ## Pensé pour une webcam
 
 La capture, l'interface et l'inférence tournent séparément. L'app utilise les images
-les plus récentes, limite leur taille à 640 × 480 et ne lance qu'une analyse à la fois.
+les plus récentes, limite à 640 × 480 les images envoyées au modèle et ne lance
+qu'une analyse à la fois. L'aperçu conserve la résolution de capture choisie.
 Un seul modèle est chargé ; sa mémoire est libérée avant de passer au suivant.
 Le mode ROCm utilise FP16 et l'attention SDPA de PyTorch.
 

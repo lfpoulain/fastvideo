@@ -35,6 +35,9 @@ class CliTests(unittest.TestCase):
             ("--max-tokens", "0"),
             ("--frames", "4"),
             ("--model", "unknown"),
+            ("--capture-fps", "0"),
+            ("--capture-fps", "61"),
+            ("--capture-resolution", "bogus"),
         ]:
             with self.subTest(args=args):
                 result = self.run_cli(*args)

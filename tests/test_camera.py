@@ -50,19 +50,24 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(self.camera.snapshot(1)[0].size, (640, 360))
         self.assertEqual(self.camera.latest.size, (1920, 1080))
 
-    def test_capture_resizes_and_releases_camera_after_interruption(self):
+    def test_capture_preserves_full_hd_and_requests_25fps_but_inference_stays_small(self):
         frame = np.empty((1080, 1920, 3), dtype=np.uint8)
         frame[:] = (10, 20, 30)
 
         class SimulatedCapture:
             released = False
             reads = 0
+            settings = {}
 
             def isOpened(self):
                 return True
 
             def set(self, prop, value):
+                self.settings[prop] = value
                 return True
+
+            def get(self, prop):
+                return self.settings.get(prop, 0)
 
             def read(self):
                 self.reads += 1
@@ -81,12 +86,38 @@ class CameraTests(unittest.TestCase):
                 self.camera.stop.set()
                 self.camera.thread.join(timeout=3)
         self.assertTrue(capture.released)
-        self.assertEqual(self.camera.latest.size, (640, 360))
+        self.assertEqual(self.camera.latest.size, (1920, 1080))
+        self.assertEqual(self.camera.snapshot(1)[0].size, (640, 360))
+        self.assertEqual(capture.settings[3], 1920)
+        self.assertEqual(capture.settings[4], 1080)
+        self.assertEqual(capture.settings[5], 25)
         self.assertEqual(self.camera.latest.getpixel((0, 0)), (30, 20, 10))
         events = []
         while not self.camera.events.empty():
             events.append(self.camera.events.get_nowait()[0])
         self.assertEqual(events, ["camera_ready", "camera_error"])
+
+    def test_driver_fallback_reports_real_frame_size_not_requested_size(self):
+        from unittest.mock import Mock
+
+        import cv2
+
+        capture = Mock()
+        capture.isOpened.return_value = True
+        capture.get.side_effect = lambda prop: 30 if prop == cv2.CAP_PROP_FPS else 0
+
+        def read():
+            self.camera.stop.set()
+            return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+        capture.read.side_effect = read
+        with patch("app.cv2.VideoCapture", return_value=capture):
+            self.camera._capture()
+        kind, _, settings = self.camera.events.get_nowait()
+        self.assertEqual(kind, "camera_ready")
+        self.assertEqual(settings["requested"], (1920, 1080, 25))
+        self.assertEqual((settings["width"], settings["height"], settings["fps"]), (640, 480, 30))
+        capture.release.assert_called_once()
 
 
 if __name__ == "__main__":

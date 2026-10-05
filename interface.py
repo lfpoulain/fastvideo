@@ -200,6 +200,38 @@ def build_interface(app):
     app.load_button = ttk.Button(settings, text="Charger le modèle", command=app.load_model)
     app.load_button.pack(fill="x")
     section("02  /  CAPTURE & CADENCE")
+    capture = tk.Frame(settings, bg=PANEL)
+    capture.pack(fill="x", pady=(0, 9))
+    capture.columnconfigure(0, weight=1)
+    label(capture, "Résolution webcam", color=MUTED, size=8).grid(
+        row=0, column=0, sticky="w", pady=(0, 5)
+    )
+    label(capture, "FPS cible", color=MUTED, size=8).grid(
+        row=0, column=1, sticky="w", padx=(8, 0), pady=(0, 5)
+    )
+    ttk.Combobox(
+        capture,
+        state="readonly",
+        textvariable=app.capture_resolution,
+        values=["640x480", "1280x720", "1920x1080", "2560x1440", "3840x2160"],
+        width=14,
+    ).grid(row=1, column=0, sticky="ew")
+    ttk.Spinbox(capture, from_=1, to=60, textvariable=app.capture_fps, width=5).grid(
+        row=1, column=1, padx=(8, 0), sticky="ew"
+    )
+    capture_options = tk.Frame(settings, bg=PANEL)
+    capture_options.pack(fill="x", pady=(0, 9))
+    label(capture_options, "Format USB", color=MUTED, size=8).pack(side="left", padx=(0, 8))
+    ttk.Combobox(
+        capture_options,
+        state="readonly",
+        textvariable=app.capture_format,
+        values=["auto", "mjpg", "yuy2"],
+        width=7,
+    ).pack(side="left")
+    ttk.Button(settings, text="Appliquer à la webcam", command=app.apply_camera_settings).pack(
+        fill="x", pady=(0, 12)
+    )
     inputs = tk.Frame(settings, bg=PANEL)
     inputs.pack(fill="x")
     for column, (name, variable, start, end, step) in enumerate(
@@ -300,6 +332,7 @@ def build_interface(app):
     top = tk.Frame(camera, bg=PANEL)
     top.pack(fill="x", padx=14, pady=12)
     label(top, "Flux webcam", size=12, bold=True).pack(side="left")
+    ttk.Button(top, text="Agrandir", command=app.expand_preview).pack(side="right", padx=(10, 0))
     label(top, variable=app.camera_state, color=TEAL, size=9).pack(side="right")
     app.preview = tk.Label(
         camera,
@@ -311,9 +344,19 @@ def build_interface(app):
         height=1,
     )
     app.preview.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-    label(camera, "APERÇU EN MIROIR  ·  IMAGES ORIGINALES POUR L’IA", color=MUTED, size=8).pack(
-        anchor="w", padx=14, pady=(0, 12)
-    )
+    camera_footer = tk.Frame(camera, bg=PANEL)
+    camera_footer.pack(fill="x", padx=14, pady=(0, 12))
+    label(
+        camera_footer,
+        variable=app.camera_details,
+        color=MUTED,
+        size=8,
+        wraplength=350,
+        justify="left",
+    ).pack(side="left", fill="x", expand=True)
+    style.configure("TCheckbutton", background=PANEL, foreground=MUTED, font=("Segoe UI", 9))
+    style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", TEXT)])
+    ttk.Checkbutton(camera_footer, text="Miroir", variable=app.mirror).pack(side="right")
     response = card(view)
     response.grid(row=0, column=1, sticky="nsew")
     top = tk.Frame(response, bg=PANEL)

@@ -44,6 +44,15 @@ vérifié lors d'un second passage.
 L'ouverture et la fermeture d'une vraie webcam ont également été vérifiées avec
 les nouveaux boutons et les FPS mesurés. L'export du journal et son effacement
 dans l'interface ont réussi, tout en conservant le fichier de logs persistant.
+La capture HD a ensuite été vérifiée : demande 1920×1080 à 25 FPS, résolution
+reçue 1920×1080 et cadence annoncée 25 FPS. Une réouverture avec demande 1280×720
+à 30 FPS a conservé le modèle ; le pilote ayant maintenu le flux en 1920×1080,
+ce choix différent a été signalé. Ces cadences sont celles annoncées par le pilote,
+pas une mesure de fluidité réelle. Les tests vérifient aussi que le flux reste
+en Full HD et que les images destinées au modèle sont réduites.
+L'aperçu agrandi, le miroir, F11 et Échap ont été exercés sur une image Full HD
+synthétique. La reprise de l'analyse après réouverture a été vérifiée avec une
+capture simulée en conservant l'objet du modèle chargé.
 Un test Tkinter ouvre aussi le menu natif `ttk.Combobox` et déclenche la molette
 au-dessus de son `popdown` : aucune exception ni défilement du panneau derrière
 le menu. Le défilement normal du panneau est ensuite vérifié. Ce test est ignoré

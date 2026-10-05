@@ -18,6 +18,7 @@ from PIL import Image, ImageOps, ImageTk
 from vision import DEFAULT_MODEL, DEFAULT_PROMPT, MODEL_BY_KEY, MODELS, LocalVision, describe_timed
 
 DEFAULT_LOG_FILE = Path(__file__).resolve().parent / "logs" / "fastvideo.log"
+CAPTURE_RESOLUTIONS = ("640x480", "1280x720", "1920x1080", "2560x1440", "3840x2160")
 
 
 def format_bytes(value):
@@ -50,8 +51,10 @@ def make_logger(filename):
 class Camera:
     """La capture tourne indépendamment du modèle et de l'interface."""
 
-    def __init__(self, index, events):
+    def __init__(self, index, events, resolution="1920x1080", fps=25, pixel_format="auto"):
         self.index, self.events = index, events
+        self.width, self.height = map(int, resolution.split("x"))
+        self.requested_fps, self.pixel_format = fps, pixel_format
         self.stop = threading.Event()
         self.lock = threading.Lock()
         self.latest = None
@@ -68,12 +71,19 @@ class Camera:
                 raise RuntimeError(
                     f"Webcam {self.index} introuvable ou déjà utilisée par une autre app."
                 )
-            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            camera.set(cv2.CAP_PROP_FPS, 30)
+            # MJPG limite la bande passante USB en HD ; le pilote peut refuser.
+            codec = (
+                "MJPG"
+                if self.pixel_format == "auto" and self.width >= 1280
+                else self.pixel_format.upper()
+            )
+            if codec != "AUTO":
+                camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*codec))
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            camera.set(cv2.CAP_PROP_FPS, self.requested_fps)
             camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            last_sample, failures = 0.0, 0
-            self.events.put(("camera_ready", self, "Webcam active"))
+            last_sample, failures, ready = 0.0, 0, False
             while not self.stop.is_set():
                 ok, frame = camera.read()
                 if not ok:
@@ -84,23 +94,38 @@ class Camera:
                     continue
                 failures = 0
                 height, width = frame.shape[:2]
-                scale = min(640 / width, 480 / height, 1.0)
-                if scale < 1:
-                    frame = cv2.resize(
-                        frame,
-                        (round(width * scale), round(height * scale)),
-                        interpolation=cv2.INTER_AREA,
-                    )
                 image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 now = time.monotonic()
+                sample = None
+                if now - last_sample >= 1:
+                    sample = image.copy()
+                    sample.thumbnail((640, 480))
+                    last_sample = now
                 with self.lock:
                     self.latest = image
                     self.frame_times.append(now)
-                    if now - last_sample >= 1:
-                        sample = image.copy()
-                        sample.thumbnail((640, 480))
+                    if sample is not None:
                         self.samples.append((now, sample))
-                        last_sample = now
+                if not ready:
+                    ready = True
+                    reported_fps = camera.get(cv2.CAP_PROP_FPS)
+                    fourcc = int(camera.get(cv2.CAP_PROP_FOURCC))
+                    actual_codec = "".join(chr((fourcc >> (8 * i)) & 255) for i in range(4))
+                    if not actual_codec.isascii() or not actual_codec.isprintable():
+                        actual_codec = "non annoncé"
+                    self.events.put(
+                        (
+                            "camera_ready",
+                            self,
+                            {
+                                "width": width,
+                                "height": height,
+                                "fps": reported_fps,
+                                "codec": actual_codec,
+                                "requested": (self.width, self.height, self.requested_fps),
+                            },
+                        )
+                    )
         except Exception as error:
             if not self.stop.is_set():
                 self.events.put(("camera_error", self, str(error)))
@@ -155,6 +180,16 @@ class App:
         self.interval = tk.DoubleVar(value=args.interval)
         self.frame_count = tk.IntVar(value=args.frames)
         self.max_tokens = tk.IntVar(value=args.max_tokens)
+        self.capture_resolution = tk.StringVar(
+            value=getattr(args, "capture_resolution", "1920x1080")
+        )
+        self.capture_fps = tk.IntVar(value=getattr(args, "capture_fps", 25))
+        self.capture_format = tk.StringVar(value=getattr(args, "capture_format", "auto"))
+        self.mirror = tk.BooleanVar(value=True)
+        self.camera_details = tk.StringVar(value="Résolution et FPS réglables · aperçu en miroir")
+        self.resume_after_camera = self.restarting_camera = False
+        self.preview_window = self.large_preview = None
+        self.large_rendered = None
         self.status = tk.StringVar(value="Prêt · choisis un modèle et ouvre ta webcam.")
         self.stats = tk.StringVar(value="Aucune analyse pour le moment.")
         self.fps_text = tk.StringVar(value="—")
@@ -249,6 +284,7 @@ class App:
 
     def toggle_camera(self):
         if self.camera is not None:
+            self.resume_after_camera = self.restarting_camera = False
             self.pause_analysis()
             stopped_camera = self.camera
             stopped_camera.stop.set()
@@ -282,13 +318,95 @@ class App:
         except (tk.TclError, ValueError):
             self.status.set("Choisis un numéro de webcam entre 0 et 9.")
             return
-        self.camera = Camera(index, self.events)
+        try:
+            resolution, fps, pixel_format = self.capture_settings()
+        except (tk.TclError, ValueError):
+            self.status.set("Résolution invalide ou FPS hors plage (1 à 60).")
+            return
+        self.camera = Camera(index, self.events, resolution, fps, pixel_format)
         self.camera.thread.start()
         self.camera_button.configure(text="Fermer la webcam")
         self.camera_input.configure(state="disabled")
         self.camera_state.set("●  OUVERTURE")
         self.status.set("Ouverture de la webcam…")
-        self.record(f"Ouverture de la webcam {index}…")
+        self.record(
+            f"Ouverture de la webcam {index} · {resolution} · {fps} FPS demandés · format {pixel_format}"
+        )
+
+    def capture_settings(self):
+        resolution, fps, pixel_format = (
+            self.capture_resolution.get(),
+            self.capture_fps.get(),
+            self.capture_format.get(),
+        )
+        if (
+            resolution not in CAPTURE_RESOLUTIONS
+            or not 1 <= fps <= 60
+            or pixel_format not in ("auto", "mjpg", "yuy2")
+        ):
+            raise ValueError("Réglages webcam invalides")
+        return resolution, fps, pixel_format
+
+    def apply_camera_settings(self):
+        try:
+            self.capture_settings()
+        except (tk.TclError, ValueError):
+            self.status.set("Résolution invalide ou FPS hors plage (1 à 60).")
+            return
+        if self.camera is None:
+            self.status.set("Les réglages seront utilisés à l’ouverture de la webcam.")
+            return
+        if self.restarting_camera:
+            return
+        resume = self.analyzing
+        self.toggle_camera()
+        self.resume_after_camera = resume
+        self.restarting_camera = True
+        self.status.set("Application des réglages webcam…")
+        self.record("Modification des réglages · réouverture de la webcam, modèle conservé.")
+
+        def reopen():
+            if self.closing or not self.restarting_camera:
+                return
+            if self.camera_button.instate(["disabled"]):
+                self.root.after(50, reopen)
+            else:
+                self.toggle_camera()
+                if self.camera is None:
+                    self.restarting_camera = self.resume_after_camera = False
+
+        self.root.after(60, reopen)
+
+    def expand_preview(self):
+        if self.preview_window is not None:
+            self.preview_window.lift()
+            return
+        self.preview_window = tk.Toplevel(self.root)
+        self.preview_window.title("FastVideo · Aperçu webcam")
+        self.preview_window.geometry("1280x760")
+        self.preview_window.configure(bg="#0d181c")
+        self.large_preview = tk.Label(
+            self.preview_window,
+            bg="#0d181c",
+            fg="#91a8ac",
+            text="Ouvre la webcam pour afficher le flux.",
+        )
+        self.large_preview.pack(fill="both", expand=True)
+        self.large_rendered = None
+        self.preview_window.protocol("WM_DELETE_WINDOW", self.close_preview)
+        self.preview_window.bind("<Escape>", lambda event: self.close_preview())
+        self.preview_window.bind(
+            "<F11>",
+            lambda event: self.preview_window.attributes(
+                "-fullscreen", not self.preview_window.attributes("-fullscreen")
+            ),
+        )
+
+    def close_preview(self):
+        if self.preview_window is not None:
+            self.preview_window.destroy()
+            self.preview_window = self.large_preview = None
+            self.large_rendered = None
 
     def pause_analysis(self):
         was_active = self.analyzing
@@ -500,13 +618,30 @@ class App:
             if origin is not self.camera:
                 return
             if kind == "camera_error":
+                self.restarting_camera = self.resume_after_camera = False
                 self.toggle_camera()
                 self.status.set(data)
                 self.record(data, "error")
             else:
                 self.status.set("Webcam active. Lance l’analyse quand tu veux.")
                 self.camera_state.set("●  EN DIRECT")
-                self.record("Webcam active · capture indépendante de l’IA.", "success")
+                fps = data["fps"]
+                reported = f"{fps:g} FPS annoncés" if fps > 0 else "FPS non annoncés par le pilote"
+                self.camera_details.set(
+                    f"{data['width']}×{data['height']} · {reported} · {data['codec']}"
+                )
+                self.record("Webcam active · " + self.camera_details.get(), "success")
+                width, height, requested_fps = data["requested"]
+                if (width, height) != (data["width"], data["height"]) or (
+                    fps > 0 and abs(fps - requested_fps) > 0.5
+                ):
+                    self.record(
+                        f"Le pilote a choisi un autre mode que {width}×{height} à {requested_fps} FPS. Les FPS mesurés figurent dans le compteur caméra."
+                    )
+                self.restarting_camera = False
+                if self.resume_after_camera:
+                    self.resume_after_camera = False
+                    self.toggle_analysis()
             return
         if kind == "progress":
             self.show_progress(data)
@@ -546,6 +681,10 @@ class App:
                 f"{self.selected_model.get()} · réponse en {elapsed:.2f} s · {count} image(s)",
                 "success",
             )
+            if len(self.completed) == 1 and elapsed >= 10 and backend.startswith("ROCm"):
+                self.record(
+                    "Première analyse lente · initialisation des kernels possible. Compare les suivantes ; pour réduire la latence, essaie LFM 450M ou 1,6B et une réponse courte."
+                )
             self.status.set(
                 "Analyse active · les prochaines images seront les plus récentes."
                 if self.analyzing
@@ -572,10 +711,31 @@ class App:
                 latest = self.camera.latest
             if latest is not None:
                 size = (max(1, self.preview.winfo_width()), max(1, self.preview.winfo_height()))
-                if latest is not self.rendered_frame or size != self.rendered_size:
-                    self.photo = ImageTk.PhotoImage(ImageOps.contain(ImageOps.mirror(latest), size))
+                render_state = (size, self.mirror.get())
+                if latest is not self.rendered_frame or render_state != self.rendered_size:
+                    scaled = ImageOps.contain(latest, size)
+                    self.photo = ImageTk.PhotoImage(
+                        ImageOps.mirror(scaled) if self.mirror.get() else scaled
+                    )
                     self.preview.configure(image=self.photo, text="")
-                    self.rendered_frame, self.rendered_size = latest, size
+                    self.rendered_frame, self.rendered_size = latest, render_state
+                if self.large_preview is not None:
+                    large_size = (
+                        max(1, self.large_preview.winfo_width()),
+                        max(1, self.large_preview.winfo_height()),
+                    )
+                    large_state = (latest, large_size, self.mirror.get())
+                    if (
+                        self.large_rendered is None
+                        or latest is not self.large_rendered[0]
+                        or large_state[1:] != self.large_rendered[1:]
+                    ):
+                        scaled = ImageOps.contain(latest, large_size)
+                        self.large_photo = ImageTk.PhotoImage(
+                            ImageOps.mirror(scaled) if self.mirror.get() else scaled
+                        )
+                        self.large_preview.configure(image=self.large_photo, text="")
+                        self.large_rendered = large_state
             if (
                 self.analyzing
                 and (self.worker is None or not self.worker.is_alive())
@@ -594,6 +754,9 @@ class App:
             if self.camera is not None:
                 self.fps_text.set(f"{self.camera.fps():.1f}")
         self.sync_controls()
+        if self.camera is None and self.large_preview is not None:
+            self.large_preview.configure(image="", text="Webcam arrêtée")
+            self.large_rendered = None
         self.root.after(30, self.tick)
 
     def close(self):
@@ -615,6 +778,21 @@ class App:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", type=int, default=0, help="Numéro de la webcam (0 par défaut)")
+    parser.add_argument(
+        "--capture-resolution",
+        choices=CAPTURE_RESOLUTIONS,
+        default="1920x1080",
+        help="Résolution demandée à la webcam",
+    )
+    parser.add_argument(
+        "--capture-fps", type=int, default=25, help="FPS demandés à la webcam, de 1 à 60"
+    )
+    parser.add_argument(
+        "--capture-format",
+        choices=["auto", "mjpg", "yuy2"],
+        default="auto",
+        help="Format USB ; auto essaie MJPG en HD",
+    )
     parser.add_argument("--model", choices=list(MODEL_BY_KEY), default=DEFAULT_MODEL)
     parser.add_argument(
         "--list-models", action="store_true", help="Afficher les modèles disponibles"
@@ -652,8 +830,11 @@ def main():
         not 0 <= args.camera <= 9
         or not 0.5 <= args.interval <= 30
         or not 1 <= args.max_tokens <= 512
+        or not 1 <= args.capture_fps <= 60
     ):
-        parser.error("Webcam : 0 à 9 ; intervalle : 0,5 à 30 s ; max-tokens : 1 à 512.")
+        parser.error(
+            "Webcam : 0 à 9 ; capture-fps : 1 à 60 ; intervalle : 0,5 à 30 s ; max-tokens : 1 à 512."
+        )
     if args.image:
         with Image.open(args.image) as source:
             image = source.convert("RGB")
