@@ -99,6 +99,7 @@ Exemples de consignes :
 | `--capture-fps` | `25` | FPS demandés à la webcam, de 1 à 60. |
 | `--capture-format` | `auto` | `auto` (essaie MJPG en HD), `mjpg` ou `yuy2`. |
 | `--device` | `auto` | `auto`, `cuda`, `rocm` ou `cpu`. |
+| `--rocm-experimental-attention` | désactivé | Autorise au lancement les kernels d'attention ROCm expérimentaux. |
 | `--interval` | `2` | Délai minimum entre les départs des analyses, de 0,5 à 30 secondes. |
 | `--frames` | `1` | Jusqu'à 3 images récentes ; FastVLM et Moondream utilisent la dernière. |
 | `--max-tokens` | `100` | Limite de génération, de 1 à 512 tokens. |
@@ -167,15 +168,59 @@ est plafonnée et MiniCPM utilise une seule vue avec un downsampling de 16×.
 | Mémoire GPU insuffisante | Essaie SmolVLM2 ou LFM 450M, une image et une réponse courte ; ferme les autres tâches GPU. |
 | `tkinter` absent sous Linux | Installe Tk pour la version de Python utilisée. |
 | Description approximative ou mauvaise langue | Essaie une consigne plus précise ou un autre modèle. La qualité dépend du modèle et de la scène. |
-| Avertissement ROCm SDPA expérimental | Le modèle peut continuer via un chemin de référence. Compare plusieurs analyses après le démarrage. |
+| Avertissement ROCm SDPA expérimental | Essaie `--rocm-experimental-attention` au lancement, puis compare plusieurs analyses. |
 | Avertissement `causal_conv1d` absent | Transformers utilise les opérations PyTorch de référence, fonctionnelles mais plus lentes. Voir les [prérequis officiels du kernel](https://github.com/Dao-AILab/causal-conv1d). |
 
-Le flag `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` mentionné par PyTorch active
-des chemins AMD expérimentaux. FastVideo conserve le réglage courant : ce mode
-reste à comparer sur ton GPU et ta distribution ROCm. Un avertissement de kernel
-ne signifie pas que la génération a échoué ; vérifie les réponses et les temps
-suivants. Les poids et kernels initialisés au premier passage peuvent expliquer
-une première analyse plus lente, sans constituer un diagnostic certain.
+### Attention ROCm expérimentale et convolutions LFM
+
+Ferme FastVideo, puis relance dans un nouveau processus :
+
+```powershell
+.\.venv\Scripts\python.exe app.py --device rocm --model lfm-3b --rocm-experimental-attention
+```
+
+Cette option définit `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` avant le chargement
+du moteur. Elle autorise les kernels expérimentaux présents dans ton PyTorch ;
+elle ne garantit ni leur sélection ni un gain de vitesse. PyTorch conserve la
+sélection SDPA et ses autres chemins disponibles. Aucun paquet supplémentaire
+n'est installé. Voir la [sélection des kernels dans PyTorch](https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/transformers/cuda/sdp_utils.cpp).
+
+La configuration est fixée au lancement : PyTorch peut mémoriser cette variable
+lors du premier appel. Sans l'option, FastVideo conserve la variable d'environnement
+existante. Pour revenir au mode précédent, ferme l'app et relance sans l'option ;
+si tu as défini la variable toi-même dans PowerShell, retire-la aussi avec
+`Remove-Item Env:TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL -ErrorAction SilentlyContinue`.
+Les lanceurs acceptent également l'option :
+
+```powershell
+.\setup.ps1 -AppArgs @('--model', 'lfm-3b', '--rocm-experimental-attention')
+```
+
+```bash
+bash setup.sh -- --model lfm-3b --rocm-experimental-attention
+```
+
+Le journal affiche PyTorch, HIP et l'architecture de la Radeon. « Autorisés »
+décrit la configuration, pas une mesure du kernel effectivement exécuté.
+Pour LFM, il indique aussi la disponibilité des kernels de convolution annoncée
+par le runtime Transformers chargé. L'avertissement `causal_conv1d_update` est
+indépendant : l'option d'attention ne le résout pas. Le repli PyTorch fonctionne.
+Les dernières [releases officielles de causal-conv1d](https://github.com/Dao-AILab/causal-conv1d/releases)
+consultées ne proposent pas de wheel Windows/ROCm ; FastVideo n'en installe pas
+automatiquement. Une compilation HIP demande une chaîne de build compatible et
+une validation sur le GPU concerné. Pour réduire la latence sans cette extension,
+essaie LFM 450M ou 1,6B, une image et une réponse courte.
+
+Tu peux comparer le même modèle et la même image synthétique dans deux processus :
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_models.py --models lfm-3b --offline --output artifacts/rocm-default.json
+.\.venv\Scripts\python.exe tools/verify_models.py --models lfm-3b --offline --rocm-experimental-attention --output artifacts/rocm-experimental.json
+```
+
+Ces rapports contiennent les diagnostics et les durées `cold_seconds` puis
+`warm_seconds`. Vérifie aussi la réponse produite. Un premier passage plus lent
+peut venir de l'initialisation des kernels ; compare surtout les passages suivants.
 
 Les réponses des modèles peuvent contenir des erreurs. Les mesures publiées décrivent
 une vérification d'exécution sur une image synthétique ; elles ne mesurent pas la

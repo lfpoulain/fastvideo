@@ -150,3 +150,11 @@ La détection des familles AMD et les plans `gfx1150`, `gfx1151` et `gfx1152` so
 Les kernels ROCm et les performances des HX370 / HX470 et Ryzen AI Max restent à valider
 sur le matériel concerné. Un test FP16 sur NVIDIA ne valide pas les kernels AMD.
 Le [guide d'installation](installation.md#amd) fournit le point de départ.
+
+L'option `--rocm-experimental-attention` est testée pour définir la variable avant
+l'ouverture de l'interface et préserver une variable existante sans l'option.
+Les diagnostics HIP, architecture et convolutions sont vérifiés avec des runtimes
+simulés. Le journal de la vraie fenêtre Tk a aussi été vérifié avec LFM 450M en cache.
+Une génération LFM 450M avec l'option reste fonctionnelle sur RTX 4090 (0,53 s au
+premier passage, 0,21 s au suivant, 48 tokens maximum). Sur NVIDIA, cette variable
+ROCm ne valide aucun kernel AMD. Aucun gain AOTriton sur Radeon n'est mesuré ici.

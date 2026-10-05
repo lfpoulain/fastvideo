@@ -3,13 +3,34 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from app import main
 from vision import MODELS
 
 APP = Path(__file__).resolve().parents[1] / "app.py"
 
 
 class CliTests(unittest.TestCase):
+    def test_attention_option_is_set_before_opening_gui_and_preserves_existing_env(self):
+        variable = "TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL"
+        cases = [((), "0", "0"), ((), "1", "1"), (("--rocm-experimental-attention",), "0", "1")]
+        for args, initial, expected in cases:
+            with (
+                self.subTest(args=args, initial=initial),
+                patch.dict(os.environ, {variable: initial}),
+                patch.object(sys, "argv", [str(APP), *args]),
+                patch("app.tk.Tk") as root,
+            ):
+
+                def opened(*_args):
+                    self.assertEqual(os.environ[variable], expected)
+
+                with patch("app.App", side_effect=opened) as dashboard:
+                    main()
+                dashboard.assert_called_once()
+                root.return_value.mainloop.assert_called_once()
+
     def run_cli(self, *args):
         environment = dict(os.environ, PYTHONUTF8="1")
         return subprocess.run(

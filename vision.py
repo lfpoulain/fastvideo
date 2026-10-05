@@ -2,6 +2,8 @@
 
 import gc
 import importlib
+import os
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -139,6 +141,45 @@ def choose_runtime(torch, requested="auto"):
     return "cuda", dtype, f"{backend} · {torch.cuda.get_device_name(0)}"
 
 
+def configure_rocm_attention(experimental=False):
+    """À appeler au lancement, avant la première utilisation de SDPA par PyTorch."""
+    if experimental:
+        os.environ["TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL"] = "1"
+
+
+def runtime_diagnostics(torch, device, spec):
+    details = [f"Runtime · PyTorch {torch.__version__}"]
+    if device == "cuda" and torch.version.hip:
+        architecture = getattr(torch.cuda.get_device_properties(0), "gcnArchName", "inconnue")
+        details[0] += f" · HIP {torch.version.hip} · architecture {architecture}"
+        experimental = os.environ.get("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL") == "1"
+        details.append(
+            "Attention SDPA · kernels ROCm expérimentaux autorisés ; sélection par PyTorch."
+            if experimental
+            else "Attention SDPA · kernels ROCm expérimentaux désactivés. "
+            "Pour les essayer, relance avec --rocm-experimental-attention."
+        )
+    if spec.key.startswith("lfm-"):
+        module = sys.modules.get("transformers.models.lfm2.modeling_lfm2")
+        available = getattr(module, "is_fast_path_available", None)
+        if available is None and module is not None:
+            # Transformers récent conserve des wrappers Python même sans extension.
+            # L'extension importée par ces wrappers doit exposer les deux kernels.
+            extension = sys.modules.get("causal_conv1d")
+            available = all(
+                callable(getattr(extension, name, None))
+                for name in ("causal_conv1d_fn", "causal_conv1d_update")
+            )
+        if device == "cpu" or available is False:
+            details.append(
+                "LFM · convolutions de référence PyTorch. "
+                "L’option d’attention ne remplace pas causal_conv1d."
+            )
+        elif available:
+            details.append("LFM · kernels causal_conv1d disponibles.")
+    return details
+
+
 class LocalVision:
     def __init__(
         self, key=DEFAULT_MODEL, device="auto", offline=False, precision="auto", progress=None
@@ -189,7 +230,10 @@ class LocalVision:
                 .to(self.device)
                 .eval()
             )
+        self.diagnostics = runtime_diagnostics(torch, self.device, self.spec)
         if progress:
+            for message in self.diagnostics:
+                progress({"stage": "diagnostic", "message": message})
             progress(
                 {
                     "stage": "ready",

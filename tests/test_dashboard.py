@@ -9,6 +9,14 @@ from vision import MODEL_BY_KEY
 
 
 class DashboardTests(unittest.TestCase):
+    def test_kernel_diagnostic_is_logged_without_changing_download_progress(self):
+        app = App.__new__(App)
+        app.record = Mock()
+        app.set_progress_mode = Mock()
+        app.show_progress({"stage": "diagnostic", "message": "HIP · gfx1150"})
+        app.record.assert_called_once_with("HIP · gfx1150", "info")
+        app.set_progress_mode.assert_not_called()
+
     def test_old_results_and_errors_cannot_replace_current_session(self):
         app = App.__new__(App)
         app.session = 4

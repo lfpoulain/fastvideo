@@ -131,6 +131,9 @@ Sur Ryzen, vérifie la mémoire réellement accessible à l'iGPU. Voir la [valid
 # Exiger l'accélération AMD ROCm
 .\.venv\Scripts\python.exe app.py --device rocm
 
+# Essayer l'attention ROCm expérimentale sur Radeon
+.\.venv\Scripts\python.exe app.py --device rocm --model lfm-3b --rocm-experimental-attention
+
 # Comparer trois images récentes
 .\.venv\Scripts\python.exe app.py --frames 3
 
@@ -147,6 +150,10 @@ les plus récentes, limite à 640 × 480 les images envoyées au modèle et ne l
 qu'une analyse à la fois. L'aperçu conserve la résolution de capture choisie.
 Un seul modèle est chargé ; sa mémoire est libérée avant de passer au suivant.
 Le mode ROCm utilise FP16 et l'attention SDPA de PyTorch.
+L'option `--rocm-experimental-attention` autorise les kernels AMD expérimentaux
+au lancement ; PyTorch sélectionne ensuite un kernel compatible. Le journal indique
+la version de PyTorch, HIP, l'architecture AMD et le mode autorisé. Le gain dépend
+du GPU et du modèle ; cette option ne fournit pas les kernels `causal_conv1d` de LFM.
 
 La vidéo reste continue et les descriptions arrivent à la vitesse du modèle.
 L'intervalle est le délai minimum entre les départs de deux analyses.

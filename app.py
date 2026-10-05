@@ -15,7 +15,15 @@ from tkinter import filedialog
 import cv2
 from PIL import Image, ImageOps, ImageTk
 
-from vision import DEFAULT_MODEL, DEFAULT_PROMPT, MODEL_BY_KEY, MODELS, LocalVision, describe_timed
+from vision import (
+    DEFAULT_MODEL,
+    DEFAULT_PROMPT,
+    MODEL_BY_KEY,
+    MODELS,
+    LocalVision,
+    configure_rocm_attention,
+    describe_timed,
+)
 
 DEFAULT_LOG_FILE = Path(__file__).resolve().parent / "logs" / "fastvideo.log"
 CAPTURE_RESOLUTIONS = ("640x480", "1280x720", "1920x1080", "2560x1440", "3840x2160")
@@ -569,6 +577,8 @@ class App:
         stage = data["stage"]
         if message := data.get("message"):
             self.record(message, "success" if stage in ("ready", "cache") else "info")
+        if stage == "diagnostic":
+            return
         if data["key"] != self.model_key():
             return
         if stage == "download":
@@ -799,6 +809,11 @@ def main():
     )
     parser.add_argument("--device", choices=["auto", "cuda", "rocm", "cpu"], default="auto")
     parser.add_argument(
+        "--rocm-experimental-attention",
+        action="store_true",
+        help="Autoriser les kernels SDPA ROCm expérimentaux au lancement (gain non garanti)",
+    )
+    parser.add_argument(
         "--interval",
         type=float,
         default=2,
@@ -835,12 +850,15 @@ def main():
         parser.error(
             "Webcam : 0 à 9 ; capture-fps : 1 à 60 ; intervalle : 0,5 à 30 s ; max-tokens : 1 à 512."
         )
+    configure_rocm_attention(args.rocm_experimental_attention)
     if args.image:
         with Image.open(args.image) as source:
             image = source.convert("RGB")
             image.thumbnail((640, 480))
         engine = LocalVision(args.model, args.device, args.offline)
         try:
+            for message in engine.diagnostics:
+                print(message)
             description, elapsed = describe_timed(engine, [image], DEFAULT_PROMPT, args.max_tokens)
             print(description)
             print(f"{engine.backend} · {elapsed:.2f} s")

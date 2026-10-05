@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from vision import MODEL_BY_KEY, LocalVision, describe_timed  # noqa: E402
+from vision import MODEL_BY_KEY, LocalVision, configure_rocm_attention, describe_timed  # noqa: E402
 
 
 def make_image():
@@ -31,8 +31,10 @@ def main():
     )
     parser.add_argument("--precision", choices=["auto", "fp16"], default="auto")
     parser.add_argument("--offline", action="store_true")
+    parser.add_argument("--rocm-experimental-attention", action="store_true")
     parser.add_argument("--output", type=Path, default=Path("artifacts/model-report.json"))
     args = parser.parse_args()
+    configure_rocm_attention(args.rocm_experimental_attention)
     os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     image = make_image()
     results = []
@@ -50,6 +52,7 @@ def main():
             engine = LocalVision(key, offline=args.offline, precision=args.precision)
             record["load_seconds"] = round(time.perf_counter() - start, 3)
             record["backend"] = engine.backend
+            record["diagnostics"] = engine.diagnostics
             record["dtype"] = str(engine.dtype)
             record["parameter_dtype"] = str(next(engine.model.parameters()).dtype)
             if record["parameter_dtype"] != record["dtype"]:
