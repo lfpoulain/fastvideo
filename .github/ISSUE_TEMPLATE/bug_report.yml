@@ -29,7 +29,7 @@ body:
     id: hardware
     attributes:
       label: GPU / processeur
-      placeholder: Ryzen AI 9 HX470, RTX 4090, CPU…
+      placeholder: HX370 / HX470, Ryzen AI Max 385, RTX 4090, CPU…
     validations:
       required: true
   - type: dropdown
@@ -40,11 +40,15 @@ body:
         - smol
         - qwen-0.8b
         - qwen-2b
+        - qwen-4b
         - minicpm
         - lfm-450m
         - lfm-1.6b
         - lfm-3b
         - fastvlm
+        - fastvlm-1.5b
+        - fastvlm-7b
+        - moondream3
     validations:
       required: true
   - type: textarea

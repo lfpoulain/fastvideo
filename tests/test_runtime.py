@@ -55,19 +55,27 @@ class RuntimeTests(unittest.TestCase):
             "smol",
             "qwen-0.8b",
             "qwen-2b",
+            "qwen-4b",
             "minicpm",
             "lfm-450m",
             "lfm-1.6b",
             "lfm-3b",
             "fastvlm",
+            "fastvlm-1.5b",
+            "fastvlm-7b",
+            "moondream3",
         }
-        self.assertTrue(expected.issubset({spec.key for spec in MODELS}))
+        self.assertEqual(expected, {spec.key for spec in MODELS})
         self.assertEqual(len({spec.key for spec in MODELS}), len(MODELS))
         self.assertEqual(len({spec.label for spec in MODELS}), len(MODELS))
         for spec in MODELS:
             with self.subTest(model=spec.key):
                 self.assertIsNotNone(re.fullmatch(r"[0-9a-f]{40}", spec.revision))
                 self.assertIn(spec.max_frames, (1, 2, 3))
+                if spec.adapter in ("fastvlm", "moondream"):
+                    self.assertEqual(spec.max_frames, 1)
+                if spec.tokenizer_repository:
+                    self.assertIsNotNone(re.fullmatch(r"[0-9a-f]{40}", spec.tokenizer_revision))
 
 
 if __name__ == "__main__":

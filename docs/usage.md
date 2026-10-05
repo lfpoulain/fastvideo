@@ -4,7 +4,7 @@
 
 ## La fenêtre
 
-1. Choisis un des huit modèles dans le menu.
+1. Choisis un des douze modèles dans le menu.
 2. Clique sur **Ouvrir la webcam**. Le numéro `0` désigne la caméra par défaut.
 3. Clique sur **Analyser en direct** pour charger le modèle et commencer.
 4. Modifie la consigne pour demander une description, un comptage ou la lecture d'un texte.
@@ -35,7 +35,7 @@ Exemples de consignes :
 | `--camera` | `0` | Numéro de webcam, de 0 à 9. |
 | `--device` | `auto` | `auto`, `cuda`, `rocm` ou `cpu`. |
 | `--interval` | `2` | Délai minimum entre les départs des analyses, de 0,5 à 30 secondes. |
-| `--frames` | `1` | Jusqu'à 3 images récentes ; FastVLM utilise toujours la dernière. |
+| `--frames` | `1` | Jusqu'à 3 images récentes ; FastVLM et Moondream utilisent la dernière. |
 | `--max-tokens` | `100` | Limite de génération, de 1 à 512 tokens. |
 | `--offline` | désactivé | Utiliser seulement les fichiers déjà téléchargés. |
 | `--image` | — | Analyser un fichier image sans ouvrir la fenêtre ni la webcam. |
@@ -61,6 +61,22 @@ en RGB et réduite à 640 × 480 au maximum, avec conservation des proportions.
 L'app conserve un petit historique avec un échantillon par seconde et y ajoute
 l'image actuelle. Elle transmet les images dans l'ordre chronologique.
 Il peut y avoir moins d'images au démarrage, tant que l'historique se remplit.
+Les trois FastVLM et Moondream3 reçoivent une seule image, même avec `--frames 3`.
+
+### Les nouveaux modèles
+
+```powershell
+.\.venv\Scripts\python.exe app.py --model fastvlm-1.5b
+.\.venv\Scripts\python.exe app.py --model fastvlm-7b
+.\.venv\Scripts\python.exe app.py --model qwen-4b
+.\.venv\Scripts\python.exe app.py --model moondream3 --max-tokens 60
+```
+
+Moondream3 utilise `query` avec le raisonnement désactivé, une température de zéro
+et la limite de tokens demandée. L'annulation ferme son flux de réponse entre les
+morceaux de texte. L'encodage initial d'une image se termine avant de s'arrêter.
+Le mode hors ligne exige aussi le tokenizer `moondream/starmie-v1`, téléchargé et
+mis en cache automatiquement lors du premier chargement connecté.
 
 ### Réduire la latence
 

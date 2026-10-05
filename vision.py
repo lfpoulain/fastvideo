@@ -1,9 +1,11 @@
-"""Les huit modèles locaux et leur inférence, sans serveur ni API distante."""
+"""Les modèles locaux et leur inférence, sans serveur ni API distante."""
 
 import gc
+import importlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 
 @dataclass(frozen=True)
@@ -14,6 +16,8 @@ class ModelSpec:
     revision: str
     max_frames: int = 3
     adapter: str = "native"
+    tokenizer_repository: str | None = None
+    tokenizer_revision: str | None = None
 
 
 MODELS = (
@@ -31,6 +35,9 @@ MODELS = (
     ),
     ModelSpec(
         "qwen-2b", "Qwen3.5 · 2B", "Qwen/Qwen3.5-2B", "15852e8c16360a2fea060d615a32b45270f8a8fc"
+    ),
+    ModelSpec(
+        "qwen-4b", "Qwen3.5 · 4B", "Qwen/Qwen3.5-4B", "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
     ),
     ModelSpec(
         "minicpm",
@@ -63,6 +70,32 @@ MODELS = (
         "16375720c2d673fa583e57e9876afde27549c7d0",
         max_frames=1,
         adapter="fastvlm",
+    ),
+    ModelSpec(
+        "fastvlm-1.5b",
+        "FastVLM · 1,5B",
+        "apple/FastVLM-1.5B",
+        "dd6608dfa0e17b050e1dde2856c3437fcba197ac",
+        max_frames=1,
+        adapter="fastvlm",
+    ),
+    ModelSpec(
+        "fastvlm-7b",
+        "FastVLM · 7B",
+        "apple/FastVLM-7B",
+        "e6b907da2d6ef4218cdb9f6f9d721b3e55a0a8f8",
+        max_frames=1,
+        adapter="fastvlm",
+    ),
+    ModelSpec(
+        "moondream3",
+        "Moondream3 · Preview",
+        "moondream/moondream3-preview",
+        "5112966d1a723413b1c9a1e8bea272b72e647b35",
+        max_frames=1,
+        adapter="moondream",
+        tokenizer_repository="moondream/starmie-v1",
+        tokenizer_revision="35192e10a54e36eabe0a7cc57a2c1aab371cafc5",
     ),
 )
 MODEL_BY_KEY = {model.key: model for model in MODELS}
@@ -107,19 +140,27 @@ def choose_runtime(torch, requested="auto"):
 
 
 class LocalVision:
-    def __init__(self, key=DEFAULT_MODEL, device="auto", offline=False):
+    def __init__(self, key=DEFAULT_MODEL, device="auto", offline=False, precision="auto"):
         import torch
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
         self.spec = MODEL_BY_KEY[key]
         self.torch = torch
         self.device, self.dtype, self.backend = choose_runtime(torch, device)
+        if precision == "fp16":
+            if self.device != "cuda":
+                raise RuntimeError("Le mode FP16 nécessite un GPU CUDA ou ROCm.")
+            self.dtype = torch.float16
+        elif precision != "auto":
+            raise ValueError("Précision inconnue : utilise auto ou fp16.")
         self.options = dict(
             cache_dir=CACHE_DIR, revision=self.spec.revision, local_files_only=offline
         )
         self.model = self.processor = self.tokenizer = None
         if self.spec.adapter == "fastvlm":
             self._load_fastvlm()
+        elif self.spec.adapter == "moondream":
+            self._load_moondream()
         else:
             self.processor = AutoProcessor.from_pretrained(
                 self.spec.repository,
@@ -159,14 +200,59 @@ class LocalVision:
         )
         self.processor = self.model.get_vision_tower().image_processor
 
-    def describe(self, images, prompt=DEFAULT_PROMPT, max_tokens=100, cancel=None):
-        from transformers import StoppingCriteria, StoppingCriteriaList
+    def _load_moondream(self):
+        from huggingface_hub import hf_hub_download
+        from tokenizers import Tokenizer
+        from transformers.dynamic_module_utils import get_class_from_dynamic_module
 
+        tokenizer_path = hf_hub_download(
+            self.spec.tokenizer_repository,
+            "tokenizer.json",
+            revision=self.spec.tokenizer_revision,
+            cache_dir=CACHE_DIR,
+            local_files_only=self.options["local_files_only"],
+        )
+        self.tokenizer = Tokenizer.from_file(tokenizer_path)
+        model_class = get_class_from_dynamic_module(
+            "hf_moondream.HfMoondream", self.spec.repository, **self.options
+        )
+        module = importlib.import_module(model_class.__module__.rsplit(".", 1)[0] + ".moondream")
+        # Le constructeur officiel charge un tokenizer séparé sur 'main'.
+        # Fournir celui fixé et mis en cache évite ce téléchargement implicite,
+        # notamment en mode --offline. Restaurer le module après construction.
+        original = module.Tokenizer
+        module.Tokenizer = SimpleNamespace(from_pretrained=lambda *args, **kwargs: self.tokenizer)
+        try:
+            self.model = (
+                model_class.from_pretrained(
+                    self.spec.repository, **self.options, use_safetensors=True, dtype=self.dtype
+                )
+                .to(self.device, dtype=self.dtype)
+                .eval()
+            )
+        finally:
+            module.Tokenizer = original
+        # Le constructeur fixe ses paramètres à BF16 malgré l'option dtype.
+        # Après conversion, recréer les buffers de position en pleine précision.
+        self.model.model._refresh_runtime_buffers()
+        # Chemin SDPA officiel : CUDA, ROCm et CPU, sans compilation Triton.
+        self.model.model.use_flex_decoding = False
+        # Le prétraitement officiel produit toujours du BF16. Adapter les crops
+        # à la précision des poids, notamment FP16 sur ROCm ou FP32 sur CPU.
+        encoder, vision = self.model.model._vis_enc, self.model.model.vision
+        self.model.model._vis_enc = lambda crops: encoder(crops.to(dtype=vision.pos_emb.dtype))
+
+    def describe(self, images, prompt=DEFAULT_PROMPT, max_tokens=100, cancel=None):
         if not images:
             raise ValueError("Aucune image à analyser.")
         if cancel is not None and cancel.is_set():
             return ""
         images = images[-self.spec.max_frames :]
+        if self.spec.adapter == "moondream":
+            with self.torch.inference_mode():
+                return self._describe_moondream(images[-1], prompt, max_tokens, cancel)
+
+        from transformers import StoppingCriteria, StoppingCriteriaList
 
         class Cancelled(StoppingCriteria):
             def __call__(self, input_ids, scores, **kwargs):
@@ -230,6 +316,24 @@ class LocalVision:
             **generation,
         )
         return self.tokenizer.decode(output[0], skip_special_tokens=True).strip()
+
+    def _describe_moondream(self, image, prompt, max_tokens, cancel):
+        stream = self.model.query(
+            image=image,
+            question=prompt.strip() or DEFAULT_PROMPT,
+            reasoning=False,
+            stream=True,
+            settings={"max_tokens": max_tokens, "temperature": 0},
+        )["answer"]
+        parts = []
+        try:
+            for chunk in stream:
+                if cancel is not None and cancel.is_set():
+                    return ""
+                parts.append(chunk)
+        finally:
+            stream.close()
+        return "".join(parts).strip()
 
     def synchronize(self):
         if self.device == "cuda":

@@ -78,8 +78,24 @@ def command_output(command):
 
 def amd_hardware(names):
     arch = next((arch for arch in AMD_ARCHES if arch in names), None)
-    if re.search(r"\bHX\s*470\b|\b890M\b", names, re.IGNORECASE):
-        arch = arch or "gfx1150"
+    # Priorité au target HIP / rocminfo, puis au GPU, enfin au nom du CPU.
+    # 840M existe sur deux architectures : ne pas déduire son target seul.
+    if arch is None:
+        for pattern, target in (
+            (r"\b(?:8065S|8060S|8050S|8040S)\b", "gfx1151"),
+            (r"\b(?:890M|880M)\b", "gfx1150"),
+            (r"\b(?:860M|820M)\b", "gfx1152"),
+            (
+                r"\bRyzen\s+AI\s+Max\+?\s+(?:PRO\s+)?(?:380|385|388|390|392|395|485|490|495)\b",
+                "gfx1151",
+            ),
+            (r"\bHX\s+(?:PRO\s+)?(?:370|375|470|475)\b|\bHX(?:370|375|470|475)\b", "gfx1150"),
+            (r"\bRyzen\s+AI\s+9\s+(?:PRO\s+)?(?:365|465)\b", "gfx1150"),
+            (r"\bRyzen\s+AI\s+[57]\s+(?:PRO\s+)?(?:330|340|345|350|440|450)\b", "gfx1152"),
+        ):
+            if re.search(pattern, names, re.IGNORECASE):
+                arch = target
+                break
     amd = bool(
         arch
         or re.search(
@@ -134,8 +150,8 @@ def select_backend(requested, requested_arch, installed, detected):
         )
         if arch not in AMD_ARCHES:
             raise RuntimeError(
-                "Architecture AMD inconnue. Pour le HX470 : "
-                "--backend rocm --amd-arch gfx1150 (PowerShell : -Backend rocm -AmdArch gfx1150). "
+                "Architecture AMD inconnue. Indique --amd-arch (PowerShell : -AmdArch) : "
+                "gfx1150 pour HX370/HX470, gfx1151 pour Ryzen AI Max 385/395. "
                 "Voir docs/installation.md pour les prérequis AMD."
             )
     return backend, arch

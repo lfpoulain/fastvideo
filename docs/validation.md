@@ -18,15 +18,21 @@ Dernière validation matérielle : **5 octobre 2026**.
 
 ## Vérifications effectuées
 
-Les huit modèles ont été chargés depuis leurs révisions fixées et ont généré une
-réponse non vide sur une image synthétique. Les sept modèles natifs ont également
+Les douze modèles ont été chargés depuis leurs révisions fixées et ont généré une
+réponse non vide sur une image synthétique en BF16 et FP16. Les huit modèles natifs ont également
 été utilisés avec deux images. L'arrêt avant génération et la libération de la
 mémoire après changement de modèle ont été vérifiés.
 
 La capture a été testée avec une vraie webcam. Les commandes Tkinter ont été
-exercées depuis Python : huit choix, analyse locale, pause, changement pendant
+exercées depuis Python sur le catalogue initial : huit choix, analyse locale, pause, changement pendant
 l'inférence, rejet d'un ancien résultat, fermeture et réouverture de la caméra.
 Le rendu visuel de la fenêtre n'a pas fait l'objet d'une inspection manuelle.
+
+Le menu étendu a été instancié avec ses douze choix et Moondream sélectionné.
+FastVLM 1,5B, FastVLM 7B, Qwen3.5 4B et Moondream3 ont également généré leurs réponses
+en FP16 avec `--offline`, `HF_HUB_OFFLINE=1` et `TRANSFORMERS_OFFLINE=1`.
+Moondream a aussi été vérifié hors ligne en BF16. Son tokenizer séparé est fixé
+à une révision, et les tests couvrent la fermeture du flux lors d'une annulation.
 
 ## Repères observés sur RTX 4090
 
@@ -42,16 +48,23 @@ synchronisé autour de la mesure.
 | SmolVLM2 500M | 0,72 s | 0,96 Gio |
 | Qwen3.5 0,8B | 0,65 s | 1,63 Gio |
 | Qwen3.5 2B | 1,01 s | 4,13 Gio |
+| Qwen3.5 4B | 1,90 s | 8,56 Gio |
 | MiniCPM-V 4.6 | 0,79 s | 2,47 Gio |
 | LFM2.5-VL 450M | 0,23 s | 0,85 Gio |
 | LFM2.5-VL 1,6B | 0,25 s | 2,99 Gio |
 | LFM2.5-VL 3B | 0,32 s | 5,84 Gio |
 | FastVLM 0,5B | 1,34 s | 1,18 Gio |
+| FastVLM 1,5B | 1,33 s | 3,16 Gio |
+| FastVLM 7B | 1,46 s | 14,54 Gio |
+| Moondream3 Preview | 1,54 s | 17,29 Gio |
 
 Il s'agit d'une mesure unique par modèle. Les réponses ont des longueurs différentes.
 Les valeurs ne donnent ni un débit à longueur égale, ni un score de qualité.
 La mémoire indique l'allocation PyTorch après chargement, hors pic d'inférence.
 Les images réelles, la consigne et le nombre de tokens influencent la latence.
+Moondream utilise le chemin SDPA non compilé et le raisonnement est désactivé.
+Qwen utilise les opérations PyTorch de référence, sans `causal_conv1d` ni
+`flash-linear-attention`. Ces mesures ne représentent pas leurs kernels spécialisés.
 
 ## Reproduire la vérification des modèles
 
@@ -70,6 +83,18 @@ Pour tester un seul modèle :
 .\.venv\Scripts\python.exe tools/verify_models.py --models lfm-450m
 ```
 
+Pour reproduire les nouvelles entrées :
+
+```powershell
+.\.venv\Scripts\python.exe tools/verify_models.py --models fastvlm-1.5b fastvlm-7b qwen-4b moondream3
+.\.venv\Scripts\python.exe tools/verify_models.py --models fastvlm-1.5b fastvlm-7b qwen-4b moondream3 --precision fp16 --offline
+```
+
+Le mode FP16 est choisi avant le chargement, puis le script vérifie la précision
+réelle des paramètres. Moondream nécessite une conversion explicite des poids et
+des crops, car son code officiel les initialise en BF16. Les buffers de position
+sont reconstruits en pleine précision après cette conversion.
+
 Les tests automatiques GitHub vérifient le code, le choix du runtime et la capture
 avec une caméra simulée. Ils s'exécutent sur Windows et Linux sans charger les modèles.
 
@@ -82,15 +107,18 @@ de uv 0.12.23 et Python 3.12.15, création du venv, installation de PyTorch CPU
 2.11.0+cpu et des dépendances, puis vérification réussie.
 La préparation d'un environnement NVIDIA existant a conservé PyTorch CUDA 12.8.
 
-Les tests de l'installateur couvrent la détection du HX470, les choix de backend,
+Les tests de l'installateur couvrent HX370 / HX470, Ryzen AI Max 385 / 395, les GPU
+Radeon correspondants, la priorité au target HIP, les choix de backend,
 les contraintes qui préservent PyTorch, les erreurs de pilotes et de pip, ainsi
 que le mode de simulation sans création de venv. La CI vérifie également les
 scripts PowerShell sur Windows et Bash sur Linux avec les plans CPU et ROCm.
 Les paquets ROCm ne sont pas installés sur les runners GitHub.
 
-## AMD HX470
+## AMD Ryzen AI
 
 Le choix ROCm et ses erreurs de configuration ont été testés avec des runtimes simulés.
-Les huit modèles ont aussi été exécutés en FP16 sur NVIDIA, la précision choisie pour ROCm.
-Les kernels ROCm et les performances du HX470 restent à valider sur un PC AMD.
+Les douze modèles ont aussi été exécutés en FP16 sur NVIDIA, la précision choisie pour ROCm.
+La détection des familles AMD et les plans `gfx1150`, `gfx1151` et `gfx1152` sont testés.
+Les kernels ROCm et les performances des HX370 / HX470 et Ryzen AI Max restent à valider
+sur le matériel concerné. Un test FP16 sur NVIDIA ne valide pas les kernels AMD.
 Le [guide d'installation](installation.md#amd) fournit le point de départ.

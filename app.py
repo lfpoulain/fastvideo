@@ -398,7 +398,7 @@ def main():
     parser.add_argument("--camera", type=int, default=0, help="Numéro de la webcam (0 par défaut)")
     parser.add_argument("--model", choices=list(MODEL_BY_KEY), default=DEFAULT_MODEL)
     parser.add_argument(
-        "--list-models", action="store_true", help="Afficher les huit modèles disponibles"
+        "--list-models", action="store_true", help="Afficher les modèles disponibles"
     )
     parser.add_argument("--device", choices=["auto", "cuda", "rocm", "cpu"], default="auto")
     parser.add_argument(
@@ -412,7 +412,7 @@ def main():
         type=int,
         choices=[1, 2, 3],
         default=1,
-        help="Images récentes par analyse ; FastVLM utilise toujours la dernière",
+        help="Images récentes par analyse ; FastVLM et Moondream utilisent la dernière",
     )
     parser.add_argument("--max-tokens", type=int, default=100)
     parser.add_argument(

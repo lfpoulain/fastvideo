@@ -47,15 +47,13 @@ def main():
         print(f"{key}: chargement…", flush=True)
         try:
             start = time.perf_counter()
-            engine = LocalVision(key, offline=args.offline)
+            engine = LocalVision(key, offline=args.offline, precision=args.precision)
             record["load_seconds"] = round(time.perf_counter() - start, 3)
-            if args.precision == "fp16":
-                if engine.device != "cuda":
-                    raise RuntimeError("Le test FP16 nécessite un GPU CUDA ou ROCm.")
-                engine.dtype = engine.torch.float16
-                engine.model.to(dtype=engine.dtype)
             record["backend"] = engine.backend
             record["dtype"] = str(engine.dtype)
+            record["parameter_dtype"] = str(next(engine.model.parameters()).dtype)
+            if record["parameter_dtype"] != record["dtype"]:
+                raise RuntimeError("La précision des poids ne correspond pas au runtime choisi.")
             if engine.device == "cuda":
                 record["allocated_gib"] = round(engine.torch.cuda.memory_allocated() / 1024**3, 3)
             prompt = "Décris les formes et leurs couleurs en français, en une phrase."

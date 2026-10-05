@@ -58,5 +58,14 @@ FastVLM utilise `AutoModelForCausalLM` avec l'architecture du dépôt officiel A
 Son adaptateur insère le token image `-200`, applique le prétraitement du vision tower
 et décode la génération. La révision du code et des poids est fixée dans le catalogue.
 
+Moondream3 charge sa classe officielle `HfMoondream`. Son tokenizer séparé est
+téléchargé à une révision fixée dans le même cache, puis fourni au constructeur
+pour éviter son téléchargement implicite sur `main`. Le modèle utilise son chemin
+SDPA (`use_flex_decoding=False`), sans compilation ni dépendance à Triton.
+L'adaptateur appelle `query` sur la dernière image avec `reasoning=False` et
+`temperature=0`, recueille le flux et le ferme lors de l'annulation.
+Les crops BF16 du prétraitement officiel sont convertis vers la précision des
+poids pour conserver le chemin FP16 sur ROCm et FP32 sur CPU.
+
 L'app ne sauvegarde pas les images de webcam. Les fichiers des modèles restent dans
 `models/`. L'option `--offline` désactive les téléchargements pour le chargement.

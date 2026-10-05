@@ -22,16 +22,49 @@ def installed_cuda(errors=None):
 
 
 class BootstrapTests(unittest.TestCase):
-    def test_hx470_and_hip_names_select_the_right_architecture(self):
-        for name in ("AMD Ryzen AI 9 HX 470", "AMD Ryzen AI 9 HX470", "AMD Radeon 890M"):
+    def test_ryzen_and_gpu_names_select_the_right_architecture(self):
+        for name in (
+            "AMD Ryzen AI 9 HX 470",
+            "AMD Ryzen AI 9 HX470",
+            "AMD Radeon 890M",
+            "AMD Ryzen AI 9 HX 370",
+            "AMD Ryzen AI 9 HX375",
+            "AMD Ryzen AI 9 HX PRO 475",
+            "AMD Ryzen AI 9 365",
+            "AMD Radeon 880M",
+        ):
             with self.subTest(name=name):
                 self.assertEqual(bootstrap.amd_hardware(name), (True, "gfx1150"))
+        for name in (
+            "AMD Ryzen AI Max 385",
+            "AMD Ryzen AI Max+ 395",
+            "AMD Ryzen AI Max PRO 385",
+            "AMD Radeon 8050S",
+            "AMD Radeon 8060S",
+            "AMD Radeon 8065S",
+            "AMD Radeon 8040S",
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(bootstrap.amd_hardware(name), (True, "gfx1151"))
+        for name in ("AMD Ryzen AI 7 350", "AMD Ryzen AI 5 PRO 340", "AMD Radeon 860M"):
+            with self.subTest(name=name):
+                self.assertEqual(bootstrap.amd_hardware(name), (True, "gfx1152"))
         self.assertEqual(bootstrap.amd_hardware("Name: gfx1151"), (True, "gfx1151"))
         self.assertEqual(bootstrap.amd_hardware("AMD Radeon unknown"), (True, None))
         self.assertEqual(
             bootstrap.amd_hardware("VGA controller: Advanced Micro Devices [AMD]"), (True, None)
         )
         self.assertEqual(bootstrap.amd_hardware("Intel Core Ultra"), (False, None))
+
+    def test_amd_gpu_target_overrides_cpu_and_ambiguous_names_stay_unknown(self):
+        self.assertEqual(
+            bootstrap.amd_hardware("GPU gfx1100\nRyzen AI 9 HX 370"), (True, "gfx1100")
+        )
+        self.assertEqual(
+            bootstrap.amd_hardware("Radeon 8050S\nRyzen AI 9 HX 370"), (True, "gfx1151")
+        )
+        self.assertEqual(bootstrap.amd_hardware("AMD Radeon 840M"), (True, None))
+        self.assertEqual(bootstrap.amd_hardware("AMD Ryzen AI 5 435\nRadeon 840M"), (True, None))
 
     def test_auto_reuses_a_working_gpu_and_prefers_nvidia_over_an_amd_igpu(self):
         dual_gpu = {"nvidia": True, "amd": True, "arch": "gfx1150"}

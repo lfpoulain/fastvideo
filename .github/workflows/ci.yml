@@ -45,6 +45,7 @@ jobs:
           bash -n setup.sh
           bash setup.sh --backend cpu --setup-only --dry-run
           bash setup.sh --backend rocm --amd-arch gfx1150 --dry-run
+          bash setup.sh --backend rocm --amd-arch gfx1151 --model moondream3 --dry-run
       - name: PowerShell installer smoke test
         if: runner.os == 'Windows'
         shell: pwsh
@@ -52,4 +53,6 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend cpu -SetupOnly -DryRun
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1150 -DryRun
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1151 -Model moondream3 -DryRun
           exit $LASTEXITCODE

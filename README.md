@@ -11,7 +11,7 @@
 
 # FastVideo
 
-**Ta webcam, huit modèles vision et une fenêtre Python.**
+**Ta webcam, douze modèles vision et une fenêtre Python.**
 
 FastVideo affiche la webcam en continu et décrit ce qu'elle voit avec un modèle exécuté
 sur ton PC. Choisis le modèle dans le menu, adapte la consigne et compare les résultats.
@@ -22,7 +22,7 @@ L'app utilise Tkinter, OpenCV et PyTorch, avec détection automatique de **CUDA,
 ## Ce que tu peux faire
 
 - Afficher une webcam et obtenir des descriptions actualisées en français.
-- Passer de SmolVLM2 à Qwen, MiniCPM, LFM ou FastVLM dans la même fenêtre.
+- Passer de SmolVLM2 à Qwen, MiniCPM, LFM, FastVLM ou Moondream dans la même fenêtre.
 - Modifier la consigne et la fréquence des analyses, puis mettre l'IA en pause.
 - Comparer jusqu'à trois images récentes pour observer les changements visibles.
 - Analyser une image locale depuis le terminal et afficher le temps d'inférence.
@@ -65,36 +65,49 @@ Une session graphique et les bibliothèques système restent nécessaires sous L
 
 Dans la fenêtre : **choisir un modèle → ouvrir la webcam → analyser en direct**.
 
-Pour sélectionner explicitement le **HX470 (`gfx1150`)** :
+La détection AMD couvre les **HX370 / HX375 / HX470 / HX475 (`gfx1150`)** et
+les **Ryzen AI Max 385 / 395 (`gfx1151`)**, en privilégiant le GPU détecté.
+Pour imposer un profil, exemple Ryzen AI Max 385 :
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1150
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1151
 ```
 
 ```bash
-bash setup.sh --backend rocm --amd-arch gfx1150
+bash setup.sh --backend rocm --amd-arch gfx1151
 ```
 
 Les poids sont téléchargés au premier usage du modèle choisi. Tu peux préparer le
 PC sans ouvrir l'app avec `-SetupOnly` / `--setup-only`, ou inspecter l'installation
 avec `-DryRun` / `--dry-run`. Voir [les options des scripts](docs/installation.md#installation-automatique).
 
-## Les huit modèles
+## Les douze modèles
 
 | Modèle | Identifiant `--model` | Dépôt officiel |
 | --- | --- | --- |
 | **SmolVLM2 500M** · sélection par défaut | `smol` | [HuggingFaceTB](https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Video-Instruct) |
 | **Qwen3.5 0,8B** | `qwen-0.8b` | [Qwen](https://huggingface.co/Qwen/Qwen3.5-0.8B) |
 | **Qwen3.5 2B** | `qwen-2b` | [Qwen](https://huggingface.co/Qwen/Qwen3.5-2B) |
+| **Qwen3.5 4B** | `qwen-4b` | [Qwen](https://huggingface.co/Qwen/Qwen3.5-4B) |
 | **MiniCPM-V 4.6** | `minicpm` | [OpenBMB](https://huggingface.co/openbmb/MiniCPM-V-4.6) |
 | **LFM2.5-VL 450M** | `lfm-450m` | [Liquid AI](https://huggingface.co/LiquidAI/LFM2.5-VL-450M) |
 | **LFM2.5-VL 1,6B** | `lfm-1.6b` | [Liquid AI](https://huggingface.co/LiquidAI/LFM2.5-VL-1.6B) |
 | **LFM2.5-VL 3B** | `lfm-3b` | [Liquid AI](https://huggingface.co/LiquidAI/LFM2.5-VL-3B) |
 | **FastVLM 0,5B** | `fastvlm` | [Apple](https://huggingface.co/apple/FastVLM-0.5B) |
+| **FastVLM 1,5B** | `fastvlm-1.5b` | [Apple](https://huggingface.co/apple/FastVLM-1.5B) |
+| **FastVLM 7B** | `fastvlm-7b` | [Apple](https://huggingface.co/apple/FastVLM-7B) |
+| **Moondream3 Preview** · 9B totaux / 2B actifs | `moondream3` | [Moondream](https://huggingface.co/moondream/moondream3-preview) |
 
-Les révisions sont fixées dans [`vision.py`](vision.py). Les sept premiers modèles utilisent
-les architectures natives de Transformers. FastVLM utilise le code du dépôt officiel Apple,
-chargé à une révision précise. FastVLM analyse une image par génération.
+Les révisions sont fixées dans [`vision.py`](vision.py). Les huit premiers modèles utilisent
+les architectures natives de Transformers. FastVLM et Moondream utilisent le code officiel,
+chargé à une révision précise, et analysent la dernière image. Moondream utilise son API
+`query`, sans raisonnement, avec le chemin SDPA pour fonctionner sans compilation Triton.
+Son tokenizer séparé est également fixé et mis en cache pour le mode hors ligne.
+
+Les grands modèles demandent plus de mémoire : les poids non quantifiés de FastVLM 7B
+occupent environ **15,5 Go**, ceux de Moondream3 environ **18,5 Go**, avant les caches et
+le travail d'inférence. Les 2B actifs de Moondream ne réduisent pas la taille des 9B de poids.
+Sur Ryzen, vérifie la mémoire réellement accessible à l'iGPU. Voir la [validation](docs/validation.md).
 
 ## Quelques commandes
 
@@ -124,12 +137,15 @@ Le mode ROCm utilise FP16 et l'attention SDPA de PyTorch.
 La vidéo reste continue et les descriptions arrivent à la vitesse du modèle.
 L'intervalle est le délai minimum entre les départs de deux analyses.
 
-**Validation actuelle :** les huit modèles ont généré des réponses sur une RTX 4090
-en BF16 et FP16. La vraie webcam, la pause et le changement de modèle ont été testés.
-Le HX470 reste à valider sur matériel AMD. Voir le [protocole et les mesures](docs/validation.md).
+**Validation actuelle :** les douze modèles ont généré des réponses sur une RTX 4090
+en BF16 et FP16. Les quatre nouvelles entrées ont aussi été vérifiées hors ligne.
+La vraie webcam, la pause et le changement de modèle ont été testés sur le catalogue initial ;
+le menu étendu propose bien les douze choix. Voir les [mesures et le protocole](docs/validation.md).
+Les performances sur matériel AMD restent à mesurer.
 
 ## Licence
 
 Le code de l'application est sous [licence MIT](LICENSE). Les poids et le code fourni
 par les dépôts des modèles conservent leurs licences respectives, indiquées sur leurs
 pages officielles. Les poids et les images de webcam ne sont pas inclus dans ce dépôt.
+Moondream3 Preview possède une [licence BSL 1.1 avec clause additionnelle](https://huggingface.co/moondream/moondream3-preview/blob/5112966d1a723413b1c9a1e8bea272b72e647b35/LICENSE.md).
