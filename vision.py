@@ -140,11 +140,18 @@ def choose_runtime(torch, requested="auto"):
 
 
 class LocalVision:
-    def __init__(self, key=DEFAULT_MODEL, device="auto", offline=False, precision="auto"):
+    def __init__(
+        self, key=DEFAULT_MODEL, device="auto", offline=False, precision="auto", progress=None
+    ):
+        from downloads import prepare_model
+
+        self.spec = MODEL_BY_KEY[key]
+        started = time.perf_counter()
+        if progress:
+            progress({"stage": "check", "message": "Initialisation du moteur local…"})
         import torch
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
-        self.spec = MODEL_BY_KEY[key]
         self.torch = torch
         self.device, self.dtype, self.backend = choose_runtime(torch, device)
         if precision == "fp16":
@@ -153,6 +160,9 @@ class LocalVision:
             self.dtype = torch.float16
         elif precision != "auto":
             raise ValueError("Précision inconnue : utilise auto ou fp16.")
+        prepare_model(self.spec, CACHE_DIR, offline, progress)
+        if progress:
+            progress({"stage": "load", "message": f"Chargement en mémoire · {self.spec.label}"})
         self.options = dict(
             cache_dir=CACHE_DIR, revision=self.spec.revision, local_files_only=offline
         )
@@ -178,6 +188,15 @@ class LocalVision:
                 )
                 .to(self.device)
                 .eval()
+            )
+        if progress:
+            progress(
+                {
+                    "stage": "ready",
+                    "message": f"Modèle prêt · {self.backend} · {time.perf_counter() - started:.1f} s",
+                    "backend": self.backend,
+                    "dtype": str(self.dtype).replace("torch.", ""),
+                }
             )
 
     def _load_fastvlm(self):

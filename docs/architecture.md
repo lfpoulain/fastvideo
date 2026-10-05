@@ -2,11 +2,13 @@
 
 [← Retour au README](../README.md)
 
-Le code de l'app tient dans deux fichiers :
+Le code de l'app est réparti en quatre fichiers Python :
 
 | Fichier | Responsabilité |
 | --- | --- |
-| [`app.py`](../app.py) | Fenêtre Tkinter, capture OpenCV, boutons et planification des analyses. |
+| [`app.py`](../app.py) | Capture OpenCV, boutons, planification, métriques et journal. |
+| [`interface.py`](../interface.py) | Mise en page et styles Tkinter / ttk. |
+| [`downloads.py`](../downloads.py) | Préparation des fichiers utiles et progression Hugging Face. |
 | [`vision.py`](../vision.py) | Catalogue, choix CUDA/ROCm/CPU, chargement et génération. |
 
 ## Flux d'une analyse
@@ -24,6 +26,8 @@ flowchart LR
 La capture tourne dans un thread dédié. L'interface consulte la dernière image
 et reçoit les résultats par une file. La génération s'exécute dans un autre thread.
 Les widgets sont modifiés uniquement depuis le thread Tkinter.
+Le worker envoie également les étapes du chargement et la progression du transfert
+dans cette file. Les mises à jour de téléchargement sont limitées à cinq par seconde.
 
 ## Images et cadence
 
@@ -35,6 +39,22 @@ L'historique contient au maximum trois échantillons. Une analyse utilise la der
 image et, si demandé, jusqu'à deux images plus anciennes. Les échantillons expirent
 après quatre secondes. Une nouvelle génération ne démarre que lorsque la précédente
 est terminée : la cadence s'adapte au modèle et au matériel.
+Après un chargement lent, le worker reprend une image fraîche avant de générer
+la première réponse. Les FPS sont calculés sur les timestamps de capture ; la
+cadence des réponses utilise une fenêtre des trente dernières réponses.
+
+## Téléchargement et journal
+
+L'interface prépare les fichiers avec `snapshot_download` et un `tqdm_class`
+personnalisé pour transmettre les octets à Tkinter. L'index safetensors détermine
+les shards exacts : les variantes ONNX, FP8 et les anciens poids ne sont pas
+préchargés. Le total correspond aux fichiers manquants ; chaque révision reste fixée.
+Le mode hors ligne passe directement au cache sans requête de métadonnées.
+Le CLI sans interface conserve le chargement direct par Transformers.
+
+Le journal visible est borné. `RotatingFileHandler` conserve trois fichiers de
+2 Mio au maximum, et le journal peut être exporté depuis la fenêtre. Les réponses
+et les images ne sont pas enregistrées automatiquement.
 
 ## Changer ou arrêter le modèle
 

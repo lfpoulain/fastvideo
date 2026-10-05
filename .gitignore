@@ -7,6 +7,7 @@ __pycache__/
 .pytest_cache/
 models/
 artifacts/
+logs/
 *.log
 *.safetensors
 *.gguf

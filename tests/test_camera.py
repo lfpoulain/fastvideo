@@ -38,6 +38,13 @@ class CameraTests(unittest.TestCase):
             [(0, 128, 0), (255, 255, 0), (0, 0, 255)],
         )
 
+    def test_fps_uses_actual_capture_times_and_expires_when_capture_stops(self):
+        self.camera.frame_times.extend([9, 9.5, 10])
+        with patch("app.time.monotonic", return_value=10):
+            self.assertEqual(self.camera.fps(), 2)
+        with patch("app.time.monotonic", return_value=12):
+            self.assertEqual(self.camera.fps(), 0)
+
     def test_snapshot_preserves_aspect_ratio_and_limits_resolution(self):
         self.camera.latest = Image.new("RGB", (1920, 1080))
         self.assertEqual(self.camera.snapshot(1)[0].size, (640, 360))

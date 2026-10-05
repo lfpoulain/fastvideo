@@ -10,10 +10,48 @@
 4. Modifie la consigne pour demander une description, un comptage ou la lecture d'un texte.
 5. Clique sur **Mettre en pause** pour arrêter les nouvelles analyses.
 
-Le panneau de droite affiche la dernière réponse, le GPU utilisé, le temps
-d'inférence et l'heure de la réponse. La fermeture de la webcam arrête l'analyse.
+Le panneau de droite affiche la dernière réponse, le GPU utilisé, la mémoire
+allouée par PyTorch et l'heure de la réponse. La fermeture de la webcam arrête l'analyse.
 Changer de modèle annule la génération en cours, puis libère le précédent modèle.
 Un téléchargement ou un chargement initial doit se terminer avant le changement effectif.
+
+### Boutons et réglages
+
+| Commande | Effet |
+| --- | --- |
+| **Charger le modèle** | Prépare les fichiers et charge le modèle sans ouvrir la webcam. |
+| **Analyser en direct / Mettre en pause** | Lance les analyses répétées ou arrête les nouvelles générations. |
+| **Analyser une image** | Analyse ponctuellement la dernière image de la webcam, puis reste en pause. |
+| **Copier** | Copie la dernière description dans le presse-papiers. |
+| **Exporter…** | Enregistre le journal visible dans un fichier `.log` ou `.txt`. |
+| **Effacer** | Vide le journal affiché ; le fichier persistant est conservé. |
+
+Le panneau de gauche permet de régler l'intervalle, le nombre d'images et la
+longueur maximale de la réponse pendant l'utilisation. Les nouvelles valeurs
+s'appliquent à l'analyse suivante. Quatre consignes prêtes à l'emploi sont proposées,
+et le texte reste librement modifiable. Le panneau défile si la fenêtre est réduite.
+
+### Vitesse et téléchargement
+
+- **Caméra** : FPS mesurés à partir des images reçues pendant les deux dernières secondes.
+- **Dernière analyse** : durée du prétraitement et de la génération, avec synchronisation GPU.
+- **Rythme observé** : réponses par minute calculées sur les dernières réponses, intervalle compris.
+- **Moteur** : CUDA, ROCm ou CPU ; le nom du GPU figure sous la réponse.
+
+Les FPS de la caméra sont indépendants de la vitesse du modèle. Le rythme apparaît
+après deux réponses et repart à zéro lors d'une reprise ou d'un changement de modèle.
+La mémoire affichée est l'allocation PyTorch, pas la totalité de la mémoire du GPU.
+
+Le journal indique la vérification du cache, les téléchargements, le chargement,
+les commandes et les temps de réponse. Pendant un transfert, la barre affiche les
+octets traités, le pourcentage et le débit moyen en Mio/s ou Gio/s. Les fichiers
+déjà en cache sont réutilisés. Le chargement en mémoire utilise une barre animée ;
+il n'affiche pas de pourcentage inventé.
+
+Les logs de l'interface sont aussi écrits dans `logs/fastvideo.log`, avec rotation
+à 2 Mio et deux sauvegardes. Les images, les consignes et les descriptions ne sont
+pas ajoutées automatiquement au journal. Le journal visible conserve au maximum
+400 entrées et peut être exporté. Les erreurs détaillées restent dans le fichier.
 
 Exemples de consignes :
 
@@ -40,6 +78,7 @@ Exemples de consignes :
 | `--offline` | désactivé | Utiliser seulement les fichiers déjà téléchargés. |
 | `--image` | — | Analyser un fichier image sans ouvrir la fenêtre ni la webcam. |
 | `--list-models` | — | Afficher les identifiants et les dépôts des modèles. |
+| `--log-file` | `logs/fastvideo.log` dans le dépôt | Emplacement du journal persistant de l'interface. |
 
 Sous Linux, utilise `.venv/bin/python` dans ces commandes.
 

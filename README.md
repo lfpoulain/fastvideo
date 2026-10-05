@@ -27,6 +27,18 @@ L'app utilise Tkinter, OpenCV et PyTorch, avec détection automatique de **CUDA,
 - Comparer jusqu'à trois images récentes pour observer les changements visibles.
 - Analyser une image locale depuis le terminal et afficher le temps d'inférence.
 - Utiliser les modèles déjà téléchargés en mode hors ligne, avec `--offline`.
+- Précharger un modèle, analyser une seule image et copier la dernière description.
+- Suivre le téléchargement, les FPS, les temps de réponse et la mémoire GPU.
+- Consulter et exporter le journal d'activité ; les logs sont aussi conservés sur disque.
+
+L'interface sombre regroupe les réglages à gauche, la webcam et la réponse au centre,
+et le journal en dessous. Les indicateurs distinguent la fluidité de la caméra
+de la cadence des analyses. Voir [les boutons et les métriques](docs/usage.md#boutons-et-réglages).
+
+![Interface FastVideo : réglages, webcam, réponse et journal](docs/assets/interface.png)
+
+*Capture de la fenêtre sur une image synthétique, analysée par LFM 450M sur RTX 4090.
+Les FPS de caméra sont à zéro dans cette démonstration sans flux physique.*
 
 Les images sont traitées en mémoire sur le PC. Aucune clé API ni serveur à lancer.
 Les poids sont téléchargés depuis les dépôts officiels au premier usage de chaque modèle.

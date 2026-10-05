@@ -26,13 +26,28 @@ mémoire après changement de modèle ont été vérifiés.
 La capture a été testée avec une vraie webcam. Les commandes Tkinter ont été
 exercées depuis Python sur le catalogue initial : huit choix, analyse locale, pause, changement pendant
 l'inférence, rejet d'un ancien résultat, fermeture et réouverture de la caméra.
-Le rendu visuel de la fenêtre n'a pas fait l'objet d'une inspection manuelle.
+L'interface sombre a ensuite été inspectée sur des captures de sa propre fenêtre,
+à 1360 × 900 et 1140 × 780, avec un panneau de réglages défilant.
 
 Le menu étendu a été instancié avec ses douze choix et Moondream sélectionné.
 FastVLM 1,5B, FastVLM 7B, Qwen3.5 4B et Moondream3 ont également généré leurs réponses
 en FP16 avec `--offline`, `HF_HUB_OFFLINE=1` et `TRANSFORMERS_OFFLINE=1`.
 Moondream a aussi été vérifié hors ligne en BF16. Son tokenizer séparé est fixé
 à une révision, et les tests couvrent la fermeture du flux lors d'une annulation.
+
+La nouvelle interface a été exercée avec LFM 450M sur RTX 4090 : téléchargement
+dans un cache vierge, progression réelle sur environ 860 Mio, chargement sans
+webcam, analyse ponctuelle, analyses répétées, pause, copie du résultat et consigne
+prédéfinie. Le contrôle a également rejeté une réponse d'une ancienne session.
+L'image de démonstration est synthétique. Le chargement depuis le cache a été
+vérifié lors d'un second passage.
+L'ouverture et la fermeture d'une vraie webcam ont également été vérifiées avec
+les nouveaux boutons et les FPS mesurés. L'export du journal et son effacement
+dans l'interface ont réussi, tout en conservant le fichier de logs persistant.
+
+Les tests couvrent les FPS de capture, la sélection exacte des shards de Moondream,
+la réutilisation du tokenizer en cache, l'absence de requête de préparation hors
+ligne et la reprise d'une image fraîche après un chargement lent.
 
 ## Repères observés sur RTX 4090
 
