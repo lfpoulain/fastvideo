@@ -44,6 +44,10 @@ vérifié lors d'un second passage.
 L'ouverture et la fermeture d'une vraie webcam ont également été vérifiées avec
 les nouveaux boutons et les FPS mesurés. L'export du journal et son effacement
 dans l'interface ont réussi, tout en conservant le fichier de logs persistant.
+Un test Tkinter ouvre aussi le menu natif `ttk.Combobox` et déclenche la molette
+au-dessus de son `popdown` : aucune exception ni défilement du panneau derrière
+le menu. Le défilement normal du panneau est ensuite vérifié. Ce test est ignoré
+si aucun affichage Tk n'est disponible, notamment sur un runner Linux sans écran.
 
 Les tests couvrent les FPS de capture, la sélection exacte des shards de Moondream,
 la réutilisation du tokenizer en cache, l'absence de requête de préparation hors

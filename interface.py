@@ -157,7 +157,12 @@ def build_interface(app):
     )
 
     def scroll_settings(event):
-        widget = root.winfo_containing(event.x_root, event.y_root)
+        try:
+            widget = root.winfo_containing(event.x_root, event.y_root)
+        except (KeyError, tk.TclError):
+            # Les menus ttk sont des widgets Tcl internes ("popdown"), sans
+            # objet Python. Leur défilement reste géré par le menu lui-même.
+            return
         if widget is None or not str(widget).startswith(str(sidebar)):
             return
         if isinstance(widget, (tk.Text, ttk.Combobox, ttk.Spinbox)):
