@@ -141,10 +141,10 @@ def choose_runtime(torch, requested="auto"):
     return "cuda", dtype, f"{backend} · {torch.cuda.get_device_name(0)}"
 
 
-def configure_rocm_attention(experimental=False):
+def configure_rocm_attention(experimental=False, *, override=False):
     """À appeler au lancement, avant la première utilisation de SDPA par PyTorch."""
-    if experimental:
-        os.environ["TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL"] = "1"
+    if experimental or override:
+        os.environ["TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL"] = "1" if experimental else "0"
 
 
 def runtime_diagnostics(torch, device, spec):

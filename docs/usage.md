@@ -20,6 +20,7 @@ Un téléchargement ou un chargement initial doit se terminer avant le changemen
 | Commande | Effet |
 | --- | --- |
 | **Charger le modèle** | Prépare les fichiers et charge le modèle sans ouvrir la webcam. |
+| **Attention ROCm expérimentale** | Autorise les kernels AMD expérimentaux ; à cocher avant le premier chargement. |
 | **Analyser en direct / Mettre en pause** | Lance les analyses répétées ou arrête les nouvelles générations. |
 | **Analyser une image** | Analyse ponctuellement la dernière image de la webcam, puis reste en pause. |
 | **Copier** | Copie la dernière description dans le presse-papiers. |
@@ -173,6 +174,18 @@ est plafonnée et MiniCPM utilise une seule vue avec un downsampling de 16×.
 
 ### Attention ROCm expérimentale et convolutions LFM
 
+Dans l'interface, coche **Attention ROCm expérimentale**, sous le choix du modèle,
+avant de cliquer sur **Charger le modèle** ou de lancer une analyse. La case reprend
+la valeur du flag CLI ou de la variable d'environnement au démarrage. Elle permet
+aussi de désactiver cette valeur avant le chargement. Le choix vaut pour la session
+courante et les changements sont consignés dans le journal.
+
+Dès le premier chargement, la case est verrouillée, y compris lors d'un changement
+de modèle : PyTorch peut mémoriser le réglage. Pour le modifier, ferme l'app,
+relance-la puis choisis la case avant de charger un modèle. Ce réglage concerne
+uniquement AMD avec ROCm ; il ne fournit pas les convolutions optimisées de LFM.
+
+Tu peux aussi activer l'option en ligne de commande.
 Ferme FastVideo, puis relance dans un nouveau processus :
 
 ```powershell

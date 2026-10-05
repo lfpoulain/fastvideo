@@ -1,13 +1,62 @@
+import os
 import tempfile
 import tkinter as tk
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from app import App
 
 
 class InterfaceTests(unittest.TestCase):
+    def test_rocm_checkbox_applies_before_loading_and_locks_for_the_session(self):
+        try:
+            root = tk.Tk()
+        except tk.TclError as error:
+            self.skipTest(f"Affichage Tk indisponible : {error}")
+        root.withdraw()
+        variable = "TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL"
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {variable: "0"}):
+            args = SimpleNamespace(
+                model="smol",
+                camera=0,
+                interval=2,
+                frames=1,
+                max_tokens=100,
+                device="auto",
+                offline=True,
+                log_file=Path(directory) / "test.log",
+            )
+            app = App(root, args)
+            engine = SimpleNamespace(close=Mock())
+            observed = []
+
+            def loaded(*_args, **_kwargs):
+                observed.append(os.environ[variable])
+                return engine
+
+            try:
+                self.assertFalse(app.rocm_experimental.get())
+                app.rocm_toggle.invoke()
+                self.assertEqual(os.environ[variable], "1")
+                app.rocm_toggle.invoke()
+                self.assertEqual(os.environ[variable], "0")
+                app.rocm_toggle.invoke()
+                with patch("app.LocalVision", side_effect=loaded):
+                    app.load_button.invoke()
+                    app.worker.join(timeout=3)
+                self.assertFalse(app.worker.is_alive())
+                self.assertEqual(observed, ["1"])
+                self.assertIs(app.engine, engine)
+                self.assertTrue(app.rocm_toggle.instate(["disabled"]))
+                self.assertIn("Relance", app.rocm_hint.get())
+                app.rocm_toggle.invoke()
+                self.assertTrue(app.rocm_experimental.get())
+                self.assertEqual(os.environ[variable], "1")
+            finally:
+                app.close()
+
     def test_mouse_wheel_over_native_combobox_popup_does_not_crash_or_scroll_sidebar(self):
         try:
             root = tk.Tk()

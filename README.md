@@ -151,7 +151,10 @@ qu'une analyse à la fois. L'aperçu conserve la résolution de capture choisie.
 Un seul modèle est chargé ; sa mémoire est libérée avant de passer au suivant.
 Le mode ROCm utilise FP16 et l'attention SDPA de PyTorch.
 L'option `--rocm-experimental-attention` autorise les kernels AMD expérimentaux
-au lancement ; PyTorch sélectionne ensuite un kernel compatible. Le journal indique
+au lancement ; la case **Attention ROCm expérimentale** permet aussi de le choisir
+dans l'interface avant le premier chargement. PyTorch sélectionne ensuite un kernel
+compatible. Le réglage est verrouillé pour la session après le début du chargement.
+Le journal indique
 la version de PyTorch, HIP, l'architecture AMD et le mode autorisé. Le gain dépend
 du GPU et du modèle ; cette option ne fournit pas les kernels `causal_conv1d` de LFM.
 

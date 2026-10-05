@@ -158,3 +158,7 @@ simulés. Le journal de la vraie fenêtre Tk a aussi été vérifié avec LFM 45
 Une génération LFM 450M avec l'option reste fonctionnelle sur RTX 4090 (0,53 s au
 premier passage, 0,21 s au suivant, 48 tokens maximum). Sur NVIDIA, cette variable
 ROCm ne valide aucun kernel AMD. Aucun gain AOTriton sur Radeon n'est mesuré ici.
+
+La case ROCm de l'interface est testée avec de vrais clics Tk : activation et
+désactivation de la variable, application avant le chargement dans le worker,
+puis verrouillage de la case pour la session. Le total est de 41 tests automatiques.

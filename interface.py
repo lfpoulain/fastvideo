@@ -197,6 +197,16 @@ def build_interface(app):
     label(
         settings, variable=app.model_hint, color=MUTED, size=9, wraplength=250, justify="left"
     ).pack(anchor="w", pady=(9, 10))
+    app.rocm_toggle = ttk.Checkbutton(
+        settings,
+        text="Attention ROCm expérimentale",
+        variable=app.rocm_experimental,
+        command=app.toggle_rocm_attention,
+    )
+    app.rocm_toggle.pack(anchor="w")
+    label(
+        settings, variable=app.rocm_hint, color=MUTED, size=8, wraplength=240, justify="left"
+    ).pack(anchor="w", pady=(5, 10))
     app.load_button = ttk.Button(settings, text="Charger le modèle", command=app.load_model)
     app.load_button.pack(fill="x")
     section("02  /  CAPTURE & CADENCE")

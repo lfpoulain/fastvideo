@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import queue
 import sys
 import threading
@@ -184,6 +185,12 @@ class App:
         self.log_lines = deque(maxlen=400)
         self.model_labels = [model.label for model in MODELS]
         self.selected_model = tk.StringVar(value=MODEL_BY_KEY[args.model].label)
+        self.rocm_experimental = tk.BooleanVar(
+            value=getattr(args, "rocm_experimental_attention", False)
+            or os.environ.get("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL") == "1"
+        )
+        self.runtime_locked = False
+        self.rocm_hint = tk.StringVar(value="AMD ROCm · à choisir avant de charger un modèle.")
         self.camera_index = tk.IntVar(value=args.camera)
         self.interval = tk.DoubleVar(value=args.interval)
         self.frame_count = tk.IntVar(value=args.frames)
@@ -463,6 +470,13 @@ class App:
     def load_model(self):
         self.start_worker([])
 
+    def toggle_rocm_attention(self):
+        if self.runtime_locked:
+            return
+        enabled = self.rocm_experimental.get()
+        configure_rocm_attention(enabled, override=True)
+        self.record("Attention ROCm expérimentale · " + ("activée" if enabled else "désactivée"))
+
     def analyze_once(self):
         if self.camera is not None:
             images = self.camera.snapshot(self.selected_frames())
@@ -501,6 +515,11 @@ class App:
         except tk.TclError:
             self.status.set("Choisis une longueur de réponse entre 1 et 512 tokens.")
             return
+        if not self.runtime_locked:
+            configure_rocm_attention(self.rocm_experimental.get(), override=True)
+            self.runtime_locked = True
+            self.rocm_toggle.configure(state="disabled")
+            self.rocm_hint.set("Réglage fixé pour cette session. Relance l’app pour le modifier.")
         self.cancel = threading.Event()
         self.worker = threading.Thread(
             target=self.analyze,
