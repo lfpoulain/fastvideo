@@ -73,6 +73,21 @@ Pour tester un seul modèle :
 Les tests automatiques GitHub vérifient le code, le choix du runtime et la capture
 avec une caméra simulée. Ils s'exécutent sur Windows et Linux sans charger les modèles.
 
+## Scripts de premier clone
+
+Les lanceurs `setup.ps1` et `setup.sh` partagent l'installateur Python.
+La préparation complète a été exécutée sous Windows dans un dossier neuf avec
+des espaces dans son chemin, avec Python absent du `PATH` : téléchargement local
+de uv 0.12.23 et Python 3.12.15, création du venv, installation de PyTorch CPU
+2.11.0+cpu et des dépendances, puis vérification réussie.
+La préparation d'un environnement NVIDIA existant a conservé PyTorch CUDA 12.8.
+
+Les tests de l'installateur couvrent la détection du HX470, les choix de backend,
+les contraintes qui préservent PyTorch, les erreurs de pilotes et de pip, ainsi
+que le mode de simulation sans création de venv. La CI vérifie également les
+scripts PowerShell sur Windows et Bash sur Linux avec les plans CPU et ROCm.
+Les paquets ROCm ne sont pas installés sur les runners GitHub.
+
 ## AMD HX470
 
 Le choix ROCm et ses erreurs de configuration ont été testés avec des runtimes simulés.

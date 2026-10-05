@@ -33,7 +33,10 @@ Les poids sont téléchargés depuis les dépôts officiels au premier usage de 
 
 ## Démarrage rapide
 
-Python **3.12** est recommandé. Installe d'abord les pilotes et le PyTorch adaptés à ton GPU.
+Après le clone, un seul script prépare Python **3.12**, crée `.venv`, installe PyTorch
+pour **AMD ROCm, NVIDIA CUDA ou CPU**, vérifie les dépendances puis ouvre l'app.
+Aux lancements suivants, il réutilise l'environnement. Les pilotes GPU doivent être
+installés sur le PC ; voir les [prérequis AMD / NVIDIA](docs/installation.md).
 
 <details open>
 <summary><strong>Windows · PowerShell</strong></summary>
@@ -41,16 +44,7 @@ Python **3.12** est recommandé. Installe d'abord les pilotes et le PyTorch adap
 ```powershell
 git clone https://github.com/lfpoulain/fastvideo.git
 cd fastvideo
-python -m venv .venv
-```
-
-Choisis l'installation **[AMD ROCm / HX470](docs/installation.md#amd)**,
-**[NVIDIA CUDA](docs/installation.md#nvidia)** ou **[CPU](docs/installation.md#cpu)**,
-puis lance :
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe app.py
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
 </details>
@@ -61,22 +55,29 @@ puis lance :
 ```bash
 git clone https://github.com/lfpoulain/fastvideo.git
 cd fastvideo
-python3 -m venv .venv
+bash setup.sh
 ```
 
-Installe PyTorch pour ton GPU en suivant le [guide d'installation](docs/installation.md), puis :
-
-```bash
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python app.py
-```
-
-Tk doit être disponible pour la version de Python choisie. Sur Ubuntu, le paquet
-`python3-tk` fournit Tk pour le Python système.
+Le script choisit un Python 3.12 avec Tkinter ou en télécharge un dans `.tools/`.
+Une session graphique et les bibliothèques système restent nécessaires sous Linux.
 
 </details>
 
 Dans la fenêtre : **choisir un modèle → ouvrir la webcam → analyser en direct**.
+
+Pour sélectionner explicitement le **HX470 (`gfx1150`)** :
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1150
+```
+
+```bash
+bash setup.sh --backend rocm --amd-arch gfx1150
+```
+
+Les poids sont téléchargés au premier usage du modèle choisi. Tu peux préparer le
+PC sans ouvrir l'app avec `-SetupOnly` / `--setup-only`, ou inspecter l'installation
+avec `-DryRun` / `--dry-run`. Voir [les options des scripts](docs/installation.md#installation-automatique).
 
 ## Les huit modèles
 

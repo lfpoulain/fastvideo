@@ -6,6 +6,82 @@ FastVideo utilise une fenêtre Tkinter et un moteur PyTorch local. Python 3.12 e
 la version testée. Pour AMD, vérifie aussi la version de Python prise en charge par
 les paquets ROCm sélectionnés.
 
+## Installation automatique
+
+Après `git clone https://github.com/lfpoulain/fastvideo.git` puis `cd fastvideo` :
+
+```powershell
+# Windows : installer puis ouvrir l'app
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
+
+# Préparer seulement le HX470
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1150 -SetupOnly
+
+# Voir le plan sans installer ni télécharger
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1150 -DryRun
+```
+
+```bash
+# Linux : installer puis ouvrir l'app
+bash setup.sh
+
+# Préparer seulement le HX470
+bash setup.sh --backend rocm --amd-arch gfx1150 --setup-only
+
+# Voir le plan sans installer ni télécharger
+bash setup.sh --backend rocm --amd-arch gfx1150 --dry-run
+```
+
+Les scripts peuvent être lancés depuis un autre dossier et acceptent les chemins
+contenant des espaces. Ils cherchent Python 3.12 avec Tkinter. S'il manque, ils
+utilisent [uv](https://docs.astral.sh/uv/guides/install-python/) pour le télécharger
+dans `.tools/`. Si uv manque aussi, ils téléchargent son installateur officiel
+fixé à la version 0.12.23. Aucune activation du venv n'est nécessaire.
+`-ExecutionPolicy Bypass` s'applique seulement au processus lancé.
+
+| PowerShell | Bash | Effet |
+| --- | --- | --- |
+| `-Backend auto` | `--backend auto` | Détection par défaut ; réutilise d'abord un PyTorch GPU fonctionnel. |
+| `-Backend rocm -AmdArch gfx1150` | `--backend rocm --amd-arch gfx1150` | Paquets AMD pour le HX470. |
+| `-Backend cuda` | `--backend cuda` | Paquets NVIDIA CUDA 12.8. |
+| `-Backend cpu` | `--backend cpu` | Paquets CPU, y compris sur une machine équipée d'un GPU. |
+| `-Model lfm-450m` | `--model lfm-450m` | Modèle sélectionné à l'ouverture ; les huit choix restent disponibles. |
+| `-SetupOnly` | `--setup-only` | Installation et vérification sans ouvrir la fenêtre. |
+| `-DryRun` | `--dry-run` | Affichage du plan sans écrire de fichiers ni installer. |
+| `-Venv 'autre-dossier'` | `--venv autre-dossier` | Utiliser un autre environnement au lieu de `.venv`. |
+| `-AppArgs @('--interval', '0.5')` | `-- --interval 0.5` | Options supplémentaires transmises à `app.py`. |
+
+Pour imposer un interpréteur, utilise `-Python 'C:\chemin\python.exe'` sous
+PowerShell ou `FASTVIDEO_PYTHON=/chemin/python3.12 bash setup.sh` sous Bash.
+
+Les tableaux `-AppArgs` se passent avec un appel PowerShell direct. Exemple :
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& .\setup.ps1 -Model lfm-450m -AppArgs @('--interval', '0.5')"
+```
+
+La détection du HX470 / Radeon 890M choisit `gfx1150`. Les profils AMD explicites
+disponibles sont `gfx1150`, `gfx1151`, `gfx1152`, `gfx1100` et `gfx1201`.
+Pour une carte AMD dont l'architecture n'est pas reconnue, le script demande un
+profil. Consulte la [matrice AMD](https://rocmdocs.amd.com/en/latest/install/rocm.html)
+pour vérifier le matériel, le système et les pilotes avant l'installation.
+
+Les scripts installent PyTorch avant les dépendances de l'app et contraignent
+ensuite ses versions pour conserver la distribution CUDA / ROCm choisie.
+Ils réutilisent un PyTorch compatible existant. Un GPU demandé mais indisponible
+interrompt l'installation avec une erreur. Après une installation réussie,
+les prochains lancements vérifient l'environnement puis évitent de relancer pip.
+Une mise à jour de l'installateur ou des dépendances déclenche une nouvelle préparation.
+Relancer après un téléchargement interrompu reprend la préparation.
+
+Les pilotes, les prérequis ROCm et la session graphique restent à installer au
+niveau du système. Sous Linux, si OpenCV signale une bibliothèque absente, installe
+les paquets correspondants, par exemple `libgl1` et `libglib2.0-0` sur Ubuntu.
+Les scripts n'installent pas les poids des huit modèles : seul le modèle utilisé
+est téléchargé à sa première analyse.
+
+La suite du guide permet une installation manuelle.
+
 ## Préparer le dossier
 
 Sous Windows :
@@ -65,7 +141,7 @@ La configuration testée sur RTX 4090 utilise PyTorch 2.11.0 avec CUDA 12.8 et
 torchvision 0.26.0. Pour reproduire cette configuration :
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+.\.venv\Scripts\python.exe -m pip install torch==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128
 ```
 
 Le mode automatique choisit BF16 si le GPU le prend en charge, sinon FP16.

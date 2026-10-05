@@ -38,3 +38,18 @@ jobs:
         run: python -m ruff format --check .
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+      - name: Bash installer smoke test
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash -n setup.sh
+          bash setup.sh --backend cpu --setup-only --dry-run
+          bash setup.sh --backend rocm --amd-arch gfx1150 --dry-run
+      - name: PowerShell installer smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend cpu -SetupOnly -DryRun
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -Backend rocm -AmdArch gfx1150 -DryRun
+          exit $LASTEXITCODE
