@@ -185,6 +185,16 @@ def build_interface(app):
 
     label(settings, "Poste de commande", size=15, bold=True).pack(anchor="w")
     section("01  /  MODÈLE VISION")
+    label(settings, "Moteur d’analyse", color=MUTED, size=8).pack(anchor="w", pady=(0, 5))
+    app.device_input = ttk.Combobox(
+        settings,
+        textvariable=app.selected_device,
+        state="readonly",
+        values=app.device_labels,
+        width=23,
+    )
+    app.device_input.pack(fill="x", pady=(0, 10))
+    app.device_input.bind("<<ComboboxSelected>>", app.change_device)
     app.model_input = ttk.Combobox(
         settings,
         textvariable=app.selected_model,
@@ -197,11 +207,19 @@ def build_interface(app):
     label(
         settings, variable=app.model_hint, color=MUTED, size=9, wraplength=250, justify="left"
     ).pack(anchor="w", pady=(9, 10))
+    app.npu_install_button = ttk.Button(
+        settings,
+        text="Installer FastFlowLM…",
+        command=app.install_npu,
+        state="normal" if app.device_key() == "npu" else "disabled",
+    )
+    app.npu_install_button.pack(fill="x", pady=(0, 10))
     app.rocm_toggle = ttk.Checkbutton(
         settings,
         text="Attention ROCm expérimentale",
         variable=app.rocm_experimental,
         command=app.toggle_rocm_attention,
+        state="disabled" if app.device_key() == "npu" else "normal",
     )
     app.rocm_toggle.pack(anchor="w")
     label(
@@ -242,6 +260,24 @@ def build_interface(app):
     ttk.Button(settings, text="Appliquer à la webcam", command=app.apply_camera_settings).pack(
         fill="x", pady=(0, 12)
     )
+    label(settings, "Résolution envoyée à l’IA", color=MUTED, size=8).pack(anchor="w", pady=(0, 5))
+    app.analysis_resolution_input = ttk.Combobox(
+        settings,
+        state="readonly",
+        textvariable=app.analysis_resolution,
+        values=app.analysis_resolutions,
+        width=23,
+    )
+    app.analysis_resolution_input.pack(fill="x")
+    app.analysis_resolution_input.bind("<<ComboboxSelected>>", app.change_analysis_resolution)
+    label(
+        settings,
+        "Plafond de dimensions · proportions conservées.\nL’aperçu webcam reste en pleine résolution.",
+        color=MUTED,
+        size=8,
+        wraplength=240,
+        justify="left",
+    ).pack(anchor="w", pady=(5, 12))
     inputs = tk.Frame(settings, bg=PANEL)
     inputs.pack(fill="x")
     for column, (name, variable, start, end, step) in enumerate(

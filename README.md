@@ -15,7 +15,8 @@
 
 FastVideo affiche la webcam en continu et décrit ce qu'elle voit avec un modèle exécuté
 sur ton PC. Choisis le modèle dans le menu, adapte la consigne et compare les résultats.
-L'app utilise Tkinter, OpenCV et PyTorch, avec détection automatique de **CUDA, ROCm ou CPU**.
+L'app utilise Tkinter et OpenCV, avec détection automatique de **CUDA, ROCm ou CPU**.
+Le moteur **NPU AMD · FastFlowLM** est également disponible pour Qwen3.5 0,8B, 2B et 4B.
 
 **[Installation](docs/installation.md) · [Utilisation](docs/usage.md) · [Architecture](docs/architecture.md) · [Validation](docs/validation.md) · [Contribuer](CONTRIBUTING.md)**
 
@@ -151,8 +152,11 @@ Voir [toutes les options et le dépannage](docs/usage.md).
 ## Pensé pour une webcam
 
 La capture, l'interface et l'inférence tournent séparément. L'app utilise les images
-les plus récentes, limite à 640 × 480 les images envoyées au modèle et ne lance
+les plus récentes, limite par défaut à 640 × 480 les images envoyées au modèle et ne lance
 qu'une analyse à la fois. L'aperçu conserve la résolution de capture choisie.
+Le menu **Résolution envoyée à l’IA** propose 256×256, 320×240, 640×480, 960×540,
+1280×720, 1920×1080 et `original`. Ces dimensions sont des plafonds : les proportions
+sont conservées et les petites images ne sont pas agrandies.
 Un seul modèle est chargé ; sa mémoire est libérée avant de passer au suivant.
 Le mode ROCm utilise FP16 et l'attention SDPA de PyTorch.
 L'option `--rocm-experimental-attention` autorise les kernels AMD expérimentaux
@@ -171,6 +175,29 @@ en BF16 et FP16. Les quatre nouvelles entrées ont aussi été vérifiées hors 
 La vraie webcam, la pause et le changement de modèle ont été testés sur le catalogue initial ;
 le menu étendu propose bien les douze choix. Voir les [mesures et le protocole](docs/validation.md).
 Les performances sur matériel AMD restent à mesurer.
+
+## NPU AMD
+
+Dans **Moteur d’analyse**, choisis **NPU AMD · FastFlowLM**. La liste affiche alors
+les trois Qwen3.5 compatibles. Le bouton **Installer FastFlowLM…** ouvre le guide
+officiel ; installe une fois le moteur et le pilote NPU adapté à ton PC, puis relance
+l'app. FastVideo vérifie le NPU, prépare les poids adaptés et démarre son moteur
+local automatiquement, sans commande supplémentaire. Les étapes apparaissent dans
+le journal. Commence avec Qwen3.5 0,8B et une résolution IA de 320×240 ou 640×480.
+
+Ce mode vise les **NPU XDNA 2 des Ryzen AI 300 / 400 / Max**. Les autres modèles
+restent accessibles en GPU/CPU : aucune version vision NPU prête de MiniCPM-V 4.6,
+SmolVLM2, LFM2.5-VL, FastVLM ou Moondream3 n'est intégrée. Cela ne prouve pas
+qu'une adaptation serait impossible ; elle demanderait un travail propre au moteur.
+L'analyse NPU utilise uniquement la dernière image. Le mode `--offline` strict
+de FastVideo est réservé au moteur PyTorch, faute de garantie équivalente dans FLM.
+
+Powered by [FastFlowLM](https://github.com/ROCm/FastFlowLM).
+Voir les [prérequis Windows](https://fastflowlm.com/docs/install_win/),
+le [guide Linux](https://github.com/ROCm/FastFlowLM/blob/main/docs/linux-getting-started.md)
+et les [modèles vision pris en charge](https://fastflowlm.com/docs/models/qwen/).
+L'intégration est testée avec un processus local simulé ; ses performances et
+son exécution sur un vrai NPU AMD restent à valider.
 
 ## Licence
 

@@ -161,7 +161,33 @@ ROCm ne valide aucun kernel AMD. Aucun gain AOTriton sur Radeon n'est mesuré ic
 
 La case ROCm de l'interface est testée avec de vrais clics Tk : activation et
 désactivation de la variable, application avant le chargement dans le worker,
-puis verrouillage de la case pour la session. Le total est de 44 tests automatiques.
+puis verrouillage de la case pour la session.
+
+### NPU AMD et résolution IA — 6 octobre 2026
+
+Le total est désormais de **54 tests automatiques**. Le mode NPU est vérifié avec
+un processus Python simulant les commandes et le serveur FastFlowLM, sans
+téléchargement ni matériel AMD : validation, préparation, disponibilité du modèle,
+JPEG transmis avec ses dimensions, génération SSE, budget de tokens, raisonnement
+désactivé, annulation pendant l'attente du premier token et fermeture du processus.
+Les erreurs et redirections sont également vérifiées. Les requêtes et descriptions
+d'inférence ne sont pas recopiées dans le journal.
+
+Le test Tkinter change réellement de moteur, filtre les trois Qwen compatibles,
+sélectionne un modèle valide, applique 320×240 et vérifie que l'image 1920×1080
+reste intacte pour l'aperçu tandis que l'IA reçoit 320×180. Le modèle chargé est
+conservé lors du changement de résolution. Le retour au CPU rétablit les douze
+choix. Le contrôleur libère aussi un moteur précédent lorsque le modèle est
+identique mais que le runtime change.
+
+Les tests de capture vérifient les plafonds, l'absence d'agrandissement et le
+redimensionnement des images historiques depuis leurs sources originales.
+**Aucun vrai NPU AMD n'est disponible sur cette machine.** Ces tests valident
+l'intégration et le protocole, pas les kernels FLM, leur compatibilité matérielle,
+la qualité des poids Q4 ou leur vitesse sur HX370/HX470/Ryzen AI Max.
+Une génération réelle LFM 450M en cache a aussi été exécutée après ces changements
+sur RTX 4090 : réponse non vide et second passage à 0,25 s. Cela vérifie le maintien
+du moteur PyTorch ; ce résultat ne mesure pas le NPU.
 
 Les lanceurs sont testés dans un dossier avec des espaces : sortie standard,
 erreurs du processus enfant, codes 0 et 7, et échec avant l'installateur quand

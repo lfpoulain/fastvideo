@@ -2,7 +2,7 @@
 
 [← Retour au README](../README.md)
 
-Le code de l'app est réparti en quatre fichiers Python :
+Le code de l'app est réparti en cinq fichiers Python :
 
 | Fichier | Responsabilité |
 | --- | --- |
@@ -10,6 +10,7 @@ Le code de l'app est réparti en quatre fichiers Python :
 | [`interface.py`](../interface.py) | Mise en page et styles Tkinter / ttk. |
 | [`downloads.py`](../downloads.py) | Préparation des fichiers utiles et progression Hugging Face. |
 | [`vision.py`](../vision.py) | Catalogue, choix CUDA/ROCm/CPU, chargement et génération. |
+| [`npu.py`](../npu.py) | Validation NPU, préparation et processus FLM privé, API locale et annulation. |
 
 ## Flux d'une analyse
 
@@ -17,8 +18,9 @@ Le code de l'app est réparti en quatre fichiers Python :
 flowchart LR
     C[Webcam / OpenCV] --> B[Dernière image + historique court]
     B --> V[Aperçu Tkinter]
-    B --> P[Prétraitement du modèle]
-    P --> M[Un modèle local / PyTorch]
+    B --> D[Plafond de résolution IA sélectionné]
+    D --> P[Prétraitement du modèle]
+    P --> M[PyTorch GPU / CPU ou FastFlowLM NPU]
     M --> Q[File de résultats]
     Q --> T[Description et temps dans Tkinter]
 ```
@@ -35,8 +37,10 @@ La capture demande par défaut 1920 × 1080 à 25 images/s ; résolution, cadenc
 format USB sont réglables. Le pilote peut choisir un autre mode : la taille de
 la première image reçue et les propriétés annoncées sont remontées à l'interface.
 La dernière image est conservée en pleine résolution pour les aperçus principal
-et agrandi. Seuls les snapshots destinés au modèle et les échantillons historiques
-sont réduits à 640×480 au maximum, en conservant leurs proportions.
+et agrandi. Les échantillons historiques conservent également leur source ; les
+snapshots destinés au modèle sont réduits selon le choix de l'utilisateur, avec
+un plafond de 640×480 par défaut. Cela permet d'augmenter la résolution IA sans
+agrandir artificiellement un échantillon déjà réduit. Les proportions sont conservées.
 L'affichage peut être en miroir ; l'inférence reçoit l'orientation originale.
 
 L'historique contient au maximum trois échantillons. Une analyse utilise la dernière
@@ -69,6 +73,19 @@ le chargement du suivant. Un chargement initial se termine avant que l'annulatio
 ne soit traitée.
 
 ## Moteur d'inférence
+
+Le NPU utilise `NpuVision`, sans importer PyTorch : `flm validate`, puis `flm pull`,
+puis un processus `flm serve` lié à la boucle locale sur un port libre. Le processus
+est privé à l'app, vérifié via `/api/ps` et arrêté au changement de moteur.
+Le redimensionnement FLM est désactivé (`-r 0`), le contexte limité à 8192 tokens.
+Le POST `/v1/chat/completions` envoie un JPEG encodé en base64 et lit le flux SSE.
+Un identifiant propre à la requête permet au thread d'annulation d'appeler
+`/api/cancel`, y compris pendant le prétraitement avant le premier token.
+Les proxies et redirections sont désactivés pour ces requêtes locales.
+Les logs du serveur d'inférence sont ignorés ; seules les étapes et la sortie de
+préparation sont remontées. Le mode hors ligne strict est refusé pour FLM.
+Le moteur NPU et le moteur PyTorch partagent `describe`, `synchronize` et `close`.
+Changer la résolution invalide les résultats en cours sans recharger le modèle.
 
 - CUDA : BF16 si pris en charge, sinon FP16.
 - ROCm : FP16, via l'API `torch.cuda` de PyTorch HIP.

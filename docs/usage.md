@@ -20,6 +20,9 @@ Un téléchargement ou un chargement initial doit se terminer avant le changemen
 | Commande | Effet |
 | --- | --- |
 | **Charger le modèle** | Prépare les fichiers et charge le modèle sans ouvrir la webcam. |
+| **Moteur d’analyse** | Automatique GPU/CPU, ROCm, CUDA, CPU ou NPU AMD. Le changement libère le moteur précédent au prochain chargement. |
+| **Installer FastFlowLM…** | Ouvre le guide d'installation du moteur et du pilote NPU AMD. |
+| **Résolution envoyée à l’IA** | Change le plafond de dimensions à la prochaine analyse, sans réouvrir la webcam ni recharger le modèle. |
 | **Attention ROCm expérimentale** | Autorise les kernels AMD expérimentaux ; à cocher avant le premier chargement. |
 | **Analyser en direct / Mettre en pause** | Lance les analyses répétées ou arrête les nouvelles générations. |
 | **Analyser une image** | Analyse ponctuellement la dernière image de la webcam, puis reste en pause. |
@@ -50,7 +53,11 @@ Voir les [propriétés de capture OpenCV](https://docs.opencv.org/4.x/d4/d15/gro
 Le bouton **Agrandir** ouvre un aperçu séparé, redimensionnable. **F11** bascule
 cet aperçu en plein écran et **Échap** le ferme. La case **Miroir** ne modifie que
 l'affichage. Le flux reste en haute résolution ; les images destinées au modèle
-sont réduites à 640×480 au maximum pour préserver la latence.
+sont réduites selon **Résolution envoyée à l’IA** : 256×256, 320×240, 640×480
+(défaut), 960×540, 1280×720, 1920×1080 ou `original`. Les proportions sont conservées,
+sans recadrage ni agrandissement. Ainsi, une source 1920×1080 avec un plafond
+640×480 est envoyée en 640×360. Le choix s'applique aussi aux images historiques
+et au mode CLI ; la résolution réelle envoyée est écrite dans le journal.
 
 ```powershell
 .\.venv\Scripts\python.exe app.py --capture-resolution 1920x1080 --capture-fps 25
@@ -61,7 +68,7 @@ sont réduites à 640×480 au maximum pour préserver la latence.
 - **Caméra** : FPS mesurés à partir des images reçues pendant les deux dernières secondes.
 - **Dernière analyse** : durée du prétraitement et de la génération, avec synchronisation GPU.
 - **Rythme observé** : réponses par minute calculées sur les dernières réponses, intervalle compris.
-- **Moteur** : CUDA, ROCm ou CPU ; le nom du GPU figure sous la réponse.
+- **Moteur** : CUDA, ROCm, CPU ou NPU AMD ; le runtime figure sous la réponse.
 
 Les FPS de la caméra sont indépendants de la vitesse du modèle. Le rythme apparaît
 après deux réponses et repart à zéro lors d'une reprise ou d'un changement de modèle.
@@ -94,12 +101,14 @@ Exemples de consignes :
 
 | Option | Valeur par défaut | Utilité |
 | --- | --- | --- |
-| `--model` | `smol` | Choix initial du modèle ; il reste modifiable dans la fenêtre. |
+| `--model` | `smol`, ou `qwen-0.8b` avec `--device npu` | Choix initial du modèle ; il reste modifiable dans la fenêtre. |
 | `--camera` | `0` | Numéro de webcam, de 0 à 9. |
 | `--capture-resolution` | `1920x1080` | Résolution demandée au flux webcam, de 640×480 à 3840×2160. |
 | `--capture-fps` | `25` | FPS demandés à la webcam, de 1 à 60. |
 | `--capture-format` | `auto` | `auto` (essaie MJPG en HD), `mjpg` ou `yuy2`. |
-| `--device` | `auto` | `auto`, `cuda`, `rocm` ou `cpu`. |
+| `--analysis-resolution` | `640x480` | Plafond pour l'image IA : `256x256`, `320x240`, `640x480`, `960x540`, `1280x720`, `1920x1080`, `original`. |
+| `--device` | `auto` | `auto`, `cuda`, `rocm`, `cpu` ou `npu`. |
+| `--flm-path` | recherche automatique | Chemin de l'exécutable FastFlowLM si absent du PATH et des dossiers Windows usuels. |
 | `--rocm-experimental-attention` | désactivé | Autorise au lancement les kernels d'attention ROCm expérimentaux. |
 | `--interval` | `2` | Délai minimum entre les départs des analyses, de 0,5 à 30 secondes. |
 | `--frames` | `1` | Jusqu'à 3 images récentes ; FastVLM et Moondream utilisent la dernière. |
@@ -118,7 +127,47 @@ Sous Linux, utilise `.venv/bin/python` dans ces commandes.
 ```
 
 La commande imprime la description et le temps d'inférence. L'image est convertie
-en RGB et réduite à 640 × 480 au maximum, avec conservation des proportions.
+en RGB et réduite selon `--analysis-resolution`, avec conservation des proportions.
+
+### NPU AMD
+
+Choisis **NPU AMD · FastFlowLM** dans la fenêtre. Si nécessaire, clique sur
+**Installer FastFlowLM…** et suis le guide officiel pour le moteur et le pilote.
+Sous Windows, il faut Windows 11 et un NPU AMD XDNA 2 ; le guide demande un pilote
+NPU au moins égal à 32.0.203.311. Utilise un pilote récent compatible avec ton PC.
+Sous Linux, suis les prérequis XRT/amdxdna du guide FastFlowLM.
+
+FastVideo démarre son propre processus FLM en arrière-plan, sur `127.0.0.1` et
+un port privé. Il prépare les fichiers via `flm pull` et réutilise le cache FLM
+séparé des poids PyTorch, sans téléchargement forcé. L'emplacement reste celui
+configuré par FastFlowLM (`FLM_MODEL_PATH` s'il est défini). Le téléchargement et
+ses indications de débit sont remontés dans le journal ; la préparation utilise
+une barre animée. Aucun service cloud ni clé API n'est nécessaire pour l'analyse.
+Le moteur est arrêté quand il est remplacé ou quand FastVideo est fermé.
+
+Seuls **Qwen3.5 0,8B, 2B et 4B** sont proposés dans ce mode, en Q4 et avec le
+raisonnement désactivé. MiniCPM-V, SmolVLM2, LFM2.5-VL, FastVLM et Moondream restent
+sur GPU/CPU. L'app ne fournit pas de conversion NPU de modèles arbitraires.
+L'analyse NPU reçoit uniquement la dernière image, même avec `--frames 3`.
+La résolution IA est réglée dans FastVideo ; le redimensionnement automatique
+supplémentaire de FLM est désactivé. Le contexte FLM est limité à 8192 tokens :
+les grandes images peuvent dépasser ce budget. Commence en 320×240 ou 640×480.
+
+Le mode `--offline` strict est refusé pour le NPU : FLM peut consulter des
+métadonnées et sa propre version lors de la préparation. Les images et
+l'inférence restent locales ; FastVideo n'enregistre pas les requêtes ni les
+descriptions du serveur dans le journal. Aucun repli GPU silencieux n'est effectué.
+
+```powershell
+.\.venv\Scripts\python.exe app.py --device npu --model qwen-2b --analysis-resolution 320x240
+.\.venv\Scripts\python.exe app.py --device npu --model qwen-0.8b --image photo.jpg
+```
+
+Sans `--model`, `--device npu` sélectionne Qwen3.5 0,8B. Le mode `auto` conserve
+la sélection GPU/CPU ; il ne choisit pas le NPU implicitement.
+Sources : [FastFlowLM Windows](https://fastflowlm.com/docs/install_win/),
+[Linux](https://github.com/ROCm/FastFlowLM/blob/main/docs/linux-getting-started.md),
+[catalogue Qwen](https://fastflowlm.com/docs/models/qwen/).
 
 ### Plusieurs images récentes
 

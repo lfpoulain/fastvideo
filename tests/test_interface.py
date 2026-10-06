@@ -6,10 +6,73 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from app import App
+from app import DEVICE_LABELS, App
+from vision import MODEL_BY_KEY
 
 
 class InterfaceTests(unittest.TestCase):
+    def test_npu_filters_models_and_resolution_changes_keep_engine_and_full_size_preview(self):
+        from PIL import Image
+
+        from app import Camera
+
+        try:
+            root = tk.Tk()
+        except tk.TclError as error:
+            self.skipTest(f"Affichage Tk indisponible : {error}")
+        root.withdraw()
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(
+                model="minicpm",
+                camera=0,
+                interval=2,
+                frames=3,
+                max_tokens=40,
+                device="auto",
+                offline=False,
+                log_file=Path(directory) / "test.log",
+            )
+            app = App(root, args)
+            engine = SimpleNamespace(
+                spec=MODEL_BY_KEY["qwen-0.8b"], close=Mock(), backend="NPU AMD", device="npu"
+            )
+            try:
+                app.selected_device.set(DEVICE_LABELS["npu"])
+                app.device_input.event_generate("<<ComboboxSelected>>")
+                self.assertEqual(
+                    [spec.key for spec in app.available_models], ["qwen-0.8b", "qwen-2b", "qwen-4b"]
+                )
+                self.assertEqual(app.model_key(), "qwen-0.8b")
+                self.assertEqual(app.selected_frames(), 1)
+                self.assertTrue(app.rocm_toggle.instate(["disabled"]))
+                self.assertFalse(app.npu_install_button.instate(["disabled"]))
+                with patch("app.NpuVision", return_value=engine), patch("app.LocalVision") as gpu:
+                    app.load_button.invoke()
+                    app.worker.join(timeout=3)
+                gpu.assert_not_called()
+                self.assertIs(app.engine, engine)
+                self.assertFalse(app.runtime_locked)
+                app.camera = Camera(0, app.events)
+                app.camera.latest = Image.new("RGB", (1920, 1080))
+                app.analysis_resolution.set("320x240")
+                app.analysis_resolution_input.event_generate("<<ComboboxSelected>>")
+                with patch("app.describe_timed", return_value=("Scène simulée.", 0.1)) as describe:
+                    app.analyze_once()
+                    app.worker.join(timeout=3)
+                images = describe.call_args.args[1]
+                self.assertEqual([image.size for image in images], [(320, 180)])
+                self.assertEqual(app.camera.latest.size, (1920, 1080))
+                self.assertIs(app.engine, engine)
+                engine.close.assert_not_called()
+                app.selected_device.set(DEVICE_LABELS["cpu"])
+                app.device_input.event_generate("<<ComboboxSelected>>")
+                self.assertEqual(len(app.available_models), 12)
+                self.assertEqual(app.model_key(), "qwen-0.8b")
+                self.assertFalse(app.rocm_toggle.instate(["disabled"]))
+            finally:
+                app.camera = None  # Capture simulée : le thread n'a pas été démarré.
+                app.close()
+
     def test_rocm_checkbox_applies_before_loading_and_locks_for_the_session(self):
         try:
             root = tk.Tk()

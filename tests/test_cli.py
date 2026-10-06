@@ -59,11 +59,27 @@ class CliTests(unittest.TestCase):
             ("--capture-fps", "0"),
             ("--capture-fps", "61"),
             ("--capture-resolution", "bogus"),
+            ("--analysis-resolution", "bogus"),
+            ("--device", "npu", "--model", "minicpm"),
         ]:
             with self.subTest(args=args):
                 result = self.run_cli(*args)
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertIn("usage:", result.stderr)
+
+    def test_npu_cli_selects_a_compatible_default_and_keeps_resolution_choice(self):
+        with (
+            patch.object(
+                sys, "argv", [str(APP), "--device", "npu", "--analysis-resolution", "320x240"]
+            ),
+            patch("app.tk.Tk"),
+            patch("app.App") as dashboard,
+        ):
+            main()
+        args = dashboard.call_args.args[1]
+        self.assertEqual(args.model, "qwen-0.8b")
+        self.assertEqual(args.device, "npu")
+        self.assertEqual(args.analysis_resolution, "320x240")
 
 
 if __name__ == "__main__":

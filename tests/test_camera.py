@@ -5,7 +5,7 @@ from unittest.mock import patch
 import numpy as np
 from PIL import Image
 
-from app import Camera
+from app import ANALYSIS_RESOLUTIONS, Camera, resize_for_analysis
 
 
 class CameraTests(unittest.TestCase):
@@ -48,6 +48,26 @@ class CameraTests(unittest.TestCase):
     def test_snapshot_preserves_aspect_ratio_and_limits_resolution(self):
         self.camera.latest = Image.new("RGB", (1920, 1080))
         self.assertEqual(self.camera.snapshot(1)[0].size, (640, 360))
+        self.assertEqual(self.camera.latest.size, (1920, 1080))
+
+    def test_changing_analysis_resolution_uses_full_resolution_history_without_upscaling(self):
+        self.camera.latest = Image.new("RGB", (1920, 1080), "blue")
+        self.camera.samples.append((40, Image.new("RGB", (1920, 1080), "red")))
+        for resolution, expected in (
+            ("256x256", (256, 144)),
+            ("320x240", (320, 180)),
+            ("640x480", (640, 360)),
+            ("1280x720", (1280, 720)),
+            ("original", (1920, 1080)),
+        ):
+            with self.subTest(resolution=resolution), patch("app.time.monotonic", return_value=42):
+                self.assertEqual(
+                    [image.size for image in self.camera.snapshot(2, resolution)],
+                    [expected, expected],
+                )
+        small = Image.new("RGB", (160, 90))
+        for resolution in ANALYSIS_RESOLUTIONS:
+            self.assertEqual(resize_for_analysis(small, resolution).size, small.size)
         self.assertEqual(self.camera.latest.size, (1920, 1080))
 
     def test_capture_preserves_full_hd_and_requests_25fps_but_inference_stays_small(self):

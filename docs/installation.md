@@ -2,9 +2,18 @@
 
 [← Retour au README](../README.md)
 
-FastVideo utilise une fenêtre Tkinter et un moteur PyTorch local. Python 3.12 est
+FastVideo utilise une fenêtre Tkinter et un moteur PyTorch local, avec un moteur
+FastFlowLM optionnel pour le NPU AMD. Python 3.12 est
 la version testée. Pour AMD, vérifie aussi la version de Python prise en charge par
 les paquets ROCm sélectionnés.
+
+Pour le **NPU AMD**, prépare l'app avec le lanceur habituel, puis choisis
+**NPU AMD · FastFlowLM** dans la fenêtre et clique sur **Installer FastFlowLM…**.
+Le guide officiel explique l'installation du moteur et du pilote NPU. Sous Windows,
+il faut Windows 11 et un Ryzen AI avec NPU XDNA 2. Les paquets PyTorch ROCm
+n'activent pas le NPU. Une fois FLM installé, relance FastVideo ; le téléchargement
+des poids Qwen adaptés et le démarrage du moteur sont automatiques au chargement.
+Voir [le mode NPU et ses limites](usage.md#npu-amd).
 
 ## Installation automatique
 

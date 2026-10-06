@@ -4,6 +4,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from PIL import Image
+
 from app import App
 from vision import MODEL_BY_KEY
 
@@ -34,7 +36,8 @@ class DashboardTests(unittest.TestCase):
         app.closing = False
         app.args = SimpleNamespace(device="cpu", offline=True)
         app.logger = Mock()
-        app.camera = SimpleNamespace(snapshot=Mock(return_value=["fresh frame"]))
+        fresh = Image.new("RGB", (640, 360))
+        app.camera = SimpleNamespace(snapshot=Mock(return_value=[fresh]))
         engine = SimpleNamespace(spec=MODEL_BY_KEY["smol"], device="cpu", backend="CPU")
         with (
             patch("app.LocalVision", return_value=engine),
@@ -42,7 +45,8 @@ class DashboardTests(unittest.TestCase):
         ):
             cancel = threading.Event()
             app.analyze(["old frame"], "Describe", "smol", 4, cancel, 32, app.camera)
-        describe.assert_called_once_with(engine, ["fresh frame"], "Describe", 32, cancel)
+        describe.assert_called_once_with(engine, [fresh], "Describe", 32, cancel)
+        app.camera.snapshot.assert_called_once_with(1, "640x480")
         results = list(app.events.queue)
         self.assertTrue(any(kind == "result" and origin == 4 for kind, origin, _ in results))
 
@@ -75,6 +79,22 @@ class DashboardTests(unittest.TestCase):
         describe.assert_not_called()
         self.assertIs(app.engine, engine)
         self.assertEqual(app.events.get_nowait()[0], "progress")
+
+    def test_switching_runtime_releases_old_engine_even_for_the_same_model(self):
+        app = App.__new__(App)
+        app.events = queue.Queue()
+        app.closing = False
+        app.args = SimpleNamespace(device="auto", offline=False)
+        app.logger = Mock()
+        old = SimpleNamespace(spec=MODEL_BY_KEY["qwen-2b"], close=Mock())
+        app.engine, app.engine_request = old, "auto"
+        new = SimpleNamespace(spec=MODEL_BY_KEY["qwen-2b"], backend="NPU AMD", close=Mock())
+        with patch("app.NpuVision", return_value=new) as loader:
+            app.analyze([], "Describe", "qwen-2b", 1, threading.Event(), 32, None, "npu")
+        old.close.assert_called_once()
+        loader.assert_called_once()
+        self.assertIs(app.engine, new)
+        self.assertEqual(app.engine_request, "npu")
 
 
 if __name__ == "__main__":

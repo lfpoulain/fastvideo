@@ -16,6 +16,7 @@ from tkinter import filedialog
 import cv2
 from PIL import Image, ImageOps, ImageTk
 
+from npu import NPU_INSTALL_URL, NPU_MODELS, NpuVision
 from vision import (
     DEFAULT_MODEL,
     DEFAULT_PROMPT,
@@ -28,6 +29,32 @@ from vision import (
 
 DEFAULT_LOG_FILE = Path(__file__).resolve().parent / "logs" / "fastvideo.log"
 CAPTURE_RESOLUTIONS = ("640x480", "1280x720", "1920x1080", "2560x1440", "3840x2160")
+ANALYSIS_RESOLUTIONS = (
+    "256x256",
+    "320x240",
+    "640x480",
+    "960x540",
+    "1280x720",
+    "1920x1080",
+    "original",
+)
+DEVICE_LABELS = {
+    "auto": "Automatique · GPU / CPU",
+    "npu": "NPU AMD · FastFlowLM",
+    "rocm": "GPU AMD · ROCm",
+    "cuda": "GPU NVIDIA · CUDA",
+    "cpu": "CPU",
+}
+
+
+def resize_for_analysis(image, resolution="640x480"):
+    """Plafond de dimensions, sans recadrage ni agrandissement de la source."""
+    if resolution not in ANALYSIS_RESOLUTIONS:
+        raise ValueError("Résolution d’analyse inconnue")
+    result = image.copy()
+    if resolution != "original":
+        result.thumbnail(tuple(map(int, resolution.split("x"))), Image.Resampling.LANCZOS)
+    return result
 
 
 def format_bytes(value):
@@ -107,8 +134,8 @@ class Camera:
                 now = time.monotonic()
                 sample = None
                 if now - last_sample >= 1:
-                    sample = image.copy()
-                    sample.thumbnail((640, 480))
+                    # Conserver la source pour changer la résolution d'analyse à chaud.
+                    sample = image
                     last_sample = now
                 with self.lock:
                     self.latest = image
@@ -149,17 +176,15 @@ class Camera:
             return 0.0
         return (len(recent) - 1) / max(0.001, recent[-1] - recent[0])
 
-    def snapshot(self, count):
+    def snapshot(self, count, resolution="640x480"):
         with self.lock:
             if self.latest is None:
                 return []
             now = time.monotonic()
             recent = [image for at, image in self.samples if 0.5 <= now - at < 4]
-            images = [image.copy() for image in recent[-(count - 1) :]] if count > 1 else []
-            images.append(self.latest.copy())
-        for image in images:
-            image.thumbnail((640, 480))
-        return images
+            images = list(recent[-(count - 1) :]) if count > 1 else []
+            images.append(self.latest)
+        return [resize_for_analysis(image, resolution) for image in images]
 
 
 class App:
@@ -183,8 +208,20 @@ class App:
         self.rendered_frame = self.rendered_size = None
         self.completed = deque(maxlen=30)
         self.log_lines = deque(maxlen=400)
-        self.model_labels = [model.label for model in MODELS]
-        self.selected_model = tk.StringVar(value=MODEL_BY_KEY[args.model].label)
+        self.selected_device = tk.StringVar(value=DEVICE_LABELS[args.device])
+        self.device_labels = tuple(DEVICE_LABELS.values())
+        self.available_models = [
+            model for model in MODELS if args.device != "npu" or model.key in NPU_MODELS
+        ]
+        self.model_labels = [model.label for model in self.available_models]
+        initial_model = args.model
+        if args.device == "npu" and initial_model not in NPU_MODELS:
+            initial_model = "qwen-0.8b"
+        self.selected_model = tk.StringVar(value=MODEL_BY_KEY[initial_model].label)
+        self.analysis_resolution = tk.StringVar(
+            value=getattr(args, "analysis_resolution", "640x480")
+        )
+        self.analysis_resolutions = ANALYSIS_RESOLUTIONS
         self.rocm_experimental = tk.BooleanVar(
             value=getattr(args, "rocm_experimental_attention", False)
             or os.environ.get("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL") == "1"
@@ -292,10 +329,59 @@ class App:
 
     def update_model_hint(self):
         spec = MODEL_BY_KEY[self.model_key()]
+        if self.device_key() == "npu":
+            self.model_hint.set("NPU XDNA 2 · Qwen3.5 quantifié · dernière image uniquement.")
+            return
         frames = (
             "Dernière image uniquement" if spec.max_frames == 1 else "Jusqu’à 3 images récentes"
         )
         self.model_hint.set(frames + " · poids téléchargés une fois.")
+
+    def device_key(self):
+        return next(
+            key for key, label in DEVICE_LABELS.items() if label == self.selected_device.get()
+        )
+
+    def change_device(self, event=None):
+        device = self.device_key()
+        current = self.model_key()
+        self.available_models = [
+            model for model in MODELS if device != "npu" or model.key in NPU_MODELS
+        ]
+        self.model_labels = [model.label for model in self.available_models]
+        self.model_input.configure(values=self.model_labels)
+        if device == "npu" and current not in NPU_MODELS:
+            self.selected_model.set(MODEL_BY_KEY["qwen-0.8b"].label)
+            self.record("NPU · sélection de Qwen3.5 0,8B, compatible avec FastFlowLM.")
+        self.rocm_toggle.configure(
+            state="disabled" if device == "npu" or self.runtime_locked else "normal"
+        )
+        self.npu_install_button.configure(state="normal" if device == "npu" else "disabled")
+        self.backend_text.set("NPU AMD" if device == "npu" else device.upper())
+        self.record("Moteur sélectionné · " + DEVICE_LABELS[device])
+        self.change_model()
+
+    def install_npu(self):
+        import webbrowser
+
+        webbrowser.open(NPU_INSTALL_URL)
+        self.record(
+            "Guide FastFlowLM ouvert · installer le moteur et le pilote NPU, puis relancer l’app."
+        )
+
+    def change_analysis_resolution(self, event=None):
+        self.session += 1
+        self.cancel.set()
+        self.completed.clear()
+        self.latency_text.set("—")
+        self.rate_text.set("—")
+        self.next_analysis = 0
+        self.record(
+            "Résolution envoyée à l’IA · "
+            + self.analysis_resolution.get()
+            + " · proportions conservées"
+        )
+        self.status.set("Résolution IA appliquée à la prochaine analyse.")
 
     def toggle_camera(self):
         if self.camera is not None:
@@ -451,7 +537,7 @@ class App:
         self.sync_controls()
 
     def model_key(self):
-        return MODELS[self.model_input.current()].key
+        return self.available_models[self.model_input.current()].key
 
     def toggle_analysis(self):
         if self.analyzing:
@@ -479,7 +565,7 @@ class App:
 
     def analyze_once(self):
         if self.camera is not None:
-            images = self.camera.snapshot(self.selected_frames())
+            images = self.camera.snapshot(self.selected_frames(), self.analysis_resolution.get())
             if images:
                 self.pause_analysis()
                 self.start_worker(images)
@@ -487,6 +573,8 @@ class App:
                 self.status.set("La webcam n’a pas encore fourni d’image.")
 
     def selected_frames(self):
+        if self.device_key() == "npu":
+            return 1
         try:
             count = min(3, max(1, self.frame_count.get()))
         except tk.TclError:
@@ -515,7 +603,8 @@ class App:
         except tk.TclError:
             self.status.set("Choisis une longueur de réponse entre 1 et 512 tokens.")
             return
-        if not self.runtime_locked:
+        device = self.device_key()
+        if device != "npu" and not self.runtime_locked:
             configure_rocm_attention(self.rocm_experimental.get(), override=True)
             self.runtime_locked = True
             self.rocm_toggle.configure(state="disabled")
@@ -531,25 +620,50 @@ class App:
                 self.cancel,
                 tokens,
                 self.camera,
+                device,
+                self.analysis_resolution.get(),
             ),
             daemon=True,
         )
         self.worker.start()
         self.sync_controls()
 
-    def analyze(self, images, prompt, key, session, cancel, max_tokens, camera):
+    def analyze(
+        self,
+        images,
+        prompt,
+        key,
+        session,
+        cancel,
+        max_tokens,
+        camera,
+        device=None,
+        resolution="640x480",
+    ):
+        device = device or self.args.device
+
         def progress(data):
-            self.events.put(("progress", session, dict(data, key=key)))
+            self.events.put(("progress", session, dict(data, key=key, requested_device=device)))
 
         try:
-            if self.engine is not None and self.engine.spec.key != key:
+            if self.engine is not None and (
+                self.engine.spec.key != key or getattr(self, "engine_request", device) != device
+            ):
                 self.events.put(("log", session, "Libération du modèle précédent…"))
                 self.engine.close()
                 self.engine = None
             if self.engine is None:
-                self.engine = LocalVision(
-                    key, self.args.device, self.args.offline, progress=progress
-                )
+                if device == "npu":
+                    self.engine = NpuVision(
+                        key,
+                        self.args.offline,
+                        progress=progress,
+                        executable=getattr(self.args, "flm_path", None),
+                        cancel=cancel,
+                    )
+                else:
+                    self.engine = LocalVision(key, device, self.args.offline, progress=progress)
+                self.engine_request = device
             else:
                 progress(
                     {
@@ -562,9 +676,13 @@ class App:
                 return
             # Le chargement peut durer : utiliser le flux actuel après sa fin.
             if camera is not None and camera is self.camera:
-                images = camera.snapshot(len(images))
+                images = camera.snapshot(len(images), resolution)
             if not images:
                 return
+            dimensions = ", ".join(f"{image.width}×{image.height}" for image in images)
+            self.events.put(
+                ("log", session, f"Images envoyées à l’IA · {dimensions} · {self.engine.backend}")
+            )
             self.events.put(("status", session, "Analyse en cours · " + self.engine.backend))
             text, elapsed = describe_timed(self.engine, images, prompt, max_tokens, cancel)
             if not cancel.is_set():
@@ -599,6 +717,8 @@ class App:
         if stage == "diagnostic":
             return
         if data["key"] != self.model_key():
+            return
+        if data.get("requested_device") and data["requested_device"] != self.device_key():
             return
         if stage == "download":
             self.set_progress_mode("determinate")
@@ -679,7 +799,7 @@ class App:
             if kind == "failure_log":
                 key, message = data
                 self.record(message, "error")
-                if key == self.model_key():
+                if key == self.model_key() and origin == self.session:
                     self.set_progress_mode("determinate")
                     self.progress_bar["value"] = 0
                     self.download_text.set("Erreur · consulter le journal")
@@ -770,7 +890,9 @@ class App:
                 and (self.worker is None or not self.worker.is_alive())
                 and time.monotonic() >= self.next_analysis
             ):
-                images = self.camera.snapshot(self.selected_frames())
+                images = self.camera.snapshot(
+                    self.selected_frames(), self.analysis_resolution.get()
+                )
                 if images:
                     try:
                         interval = min(30.0, max(0.5, self.interval.get()))
@@ -795,6 +917,11 @@ class App:
         if self.camera is not None:
             self.camera.stop.set()
             self.camera.thread.join(timeout=1)
+        if self.engine is not None and getattr(self.engine, "device", None) == "npu":
+            # Fermer le processus FLM même si une réponse est encore en cours.
+            self.engine.close()
+        if self.worker is not None and self.worker.is_alive() and self.device_key() == "npu":
+            self.worker.join(timeout=3)
         if self.engine is not None and (self.worker is None or not self.worker.is_alive()):
             self.engine.close()
             self.engine = None
@@ -822,11 +949,18 @@ def main():
         default="auto",
         help="Format USB ; auto essaie MJPG en HD",
     )
-    parser.add_argument("--model", choices=list(MODEL_BY_KEY), default=DEFAULT_MODEL)
+    parser.add_argument("--model", choices=list(MODEL_BY_KEY))
     parser.add_argument(
         "--list-models", action="store_true", help="Afficher les modèles disponibles"
     )
-    parser.add_argument("--device", choices=["auto", "cuda", "rocm", "cpu"], default="auto")
+    parser.add_argument("--device", choices=list(DEVICE_LABELS), default="auto")
+    parser.add_argument(
+        "--analysis-resolution",
+        choices=ANALYSIS_RESOLUTIONS,
+        default="640x480",
+        help="Dimensions maximales envoyées à l’IA ; original conserve la source",
+    )
+    parser.add_argument("--flm-path", type=Path, help="Chemin de flm.exe / flm pour le NPU AMD")
     parser.add_argument(
         "--rocm-experimental-attention",
         action="store_true",
@@ -856,10 +990,13 @@ def main():
         "--log-file", type=Path, default=DEFAULT_LOG_FILE, help="Fichier du journal de l’interface"
     )
     args = parser.parse_args()
+    args.model = args.model or ("qwen-0.8b" if args.device == "npu" else DEFAULT_MODEL)
     if args.list_models:
         for spec in MODELS:
             print(f"{spec.key:12}  {spec.label:22}  {spec.repository}")
         return
+    if args.device == "npu" and args.model not in NPU_MODELS:
+        parser.error("NPU AMD : choisis qwen-0.8b, qwen-2b ou qwen-4b ; sinon utilise GPU/CPU.")
     if (
         not 0 <= args.camera <= 9
         or not 0.5 <= args.interval <= 30
@@ -872,9 +1009,12 @@ def main():
     configure_rocm_attention(args.rocm_experimental_attention)
     if args.image:
         with Image.open(args.image) as source:
-            image = source.convert("RGB")
-            image.thumbnail((640, 480))
-        engine = LocalVision(args.model, args.device, args.offline)
+            image = resize_for_analysis(source.convert("RGB"), args.analysis_resolution)
+        engine = (
+            NpuVision(args.model, args.offline, executable=args.flm_path)
+            if args.device == "npu"
+            else LocalVision(args.model, args.device, args.offline)
+        )
         try:
             for message in engine.diagnostics:
                 print(message)
