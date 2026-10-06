@@ -161,10 +161,13 @@ ROCm ne valide aucun kernel AMD. Aucun gain AOTriton sur Radeon n'est mesuré ic
 
 La case ROCm de l'interface est testée avec de vrais clics Tk : activation et
 désactivation de la variable, application avant le chargement dans le worker,
-puis verrouillage de la case pour la session. Le total est de 43 tests automatiques.
+puis verrouillage de la case pour la session. Le total est de 44 tests automatiques.
 
 Les lanceurs sont testés dans un dossier avec des espaces : sortie standard,
 erreurs du processus enfant, codes 0 et 7, et échec avant l'installateur quand
 Python est introuvable. Les fichiers de journal sont lus pour vérifier ces
 informations. Sous Windows, ces cas ont été exécutés avec Windows PowerShell 5.1
 et Git Bash ; la pause sur erreur a aussi été vérifiée dans un terminal interactif.
+Le lanceur `start.cmd` est également testé sous Windows. Les tests vérifient que
+`startup-latest.log` est écrit sans option, remplacé au lancement suivant et
+conservé dans les archives, même après un échec.

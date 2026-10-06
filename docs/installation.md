@@ -10,6 +10,10 @@ les paquets ROCm sélectionnés.
 
 Après `git clone https://github.com/lfpoulain/fastvideo.git` puis `cd fastvideo` :
 
+Sous Windows, tu peux simplement **double-cliquer sur `start.cmd`** dans le dossier
+du dépôt. Il lance la préparation puis l'app ; en cas d'erreur, la fenêtre attend
+une touche. Le log est créé automatiquement dans **`logs/startup-latest.log`**.
+
 ```powershell
 # Windows : installer puis ouvrir l'app
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
@@ -103,12 +107,16 @@ est téléchargé à sa première analyse.
 
 ### Si la fenêtre se ferme trop vite
 
-Chaque exécution des lanceurs crée un journal `logs/startup-<date>-<pid>.log`
+Chaque exécution des lanceurs écrit automatiquement **`logs/startup-latest.log`**
 dans le dépôt, dès le début du script, avant la recherche de Python. Il contient
 le système, l'interpréteur choisi, les vérifications des candidats Python,
 le runtime PyTorch existant, la détection du matériel, les commandes exécutées,
 leurs sorties et erreurs, puis le code de sortie final. La sortie reste visible
-dans le terminal. Les journaux restent locaux et sont exclus de Git.
+dans le terminal. Aucune option ni commande de lecture n'est nécessaire : ouvre
+ce fichier directement depuis le dossier `logs`. Le dernier lancement remplace
+son contenu ; un historique `startup-<date>-<pid>.log` est aussi conservé.
+Sous PowerShell, la copie historique est créée à la fin du lancement.
+Les journaux restent locaux et sont exclus de Git.
 
 Sous PowerShell, une erreur garde la console interactive ouverte jusqu'à Entrée.
 Les exécutions avec entrée redirigée ne bloquent pas ; `-NoPause` désactive aussi
@@ -117,26 +125,18 @@ Si le dossier du dépôt ne permet pas d'écrire le journal, le lanceur utilise
 `%TEMP%\FastVideo\logs` sous Windows, ou `${TMPDIR:-/tmp}/fastvideo-logs` sous Bash.
 Le chemin exact est affiché au début et à la fin.
 
-Sur le PC distant, ouvre un terminal PowerShell dans le dépôt puis lance :
-
-```powershell
-git pull
-powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -LogFile .\logs\startup-remote.log
-```
-
-Ce fichier choisi est remplacé à chaque exécution. Pour lire sa fin :
-
-```powershell
-Get-Content .\logs\startup-remote.log -Tail 100
-```
+Sur le PC distant, après la mise à jour du dépôt, double-clique sur **`start.cmd`**
+puis ouvre **`logs/startup-latest.log`**. Le lancement habituel de `setup.ps1`
+produit le même journal automatiquement. `-LogFile` reste facultatif si tu veux
+choisir un autre fichier ; il remplace alors l'emplacement par défaut.
 
 Le journal du lanceur complète `logs/fastvideo.log`, écrit une fois l'interface
 initialisée. Il capture aussi les erreurs d'importation et d'ouverture de Tk
 émises par l'app lancée depuis le script. Un lancement direct de `app.py` ne crée
 pas ce journal du lanceur. Si PowerShell refuse d'exécuter le script avant son
 démarrage (politique d'exécution ou paramètres invalides), aucun journal ne peut
-encore être créé ; copie alors le message du terminal. La commande ci-dessus
-fixe la politique d'exécution pour ce processus.
+encore être créé ; copie alors le message du terminal. `start.cmd` fixe la politique
+d'exécution pour ce processus et garde aussi ces erreurs visibles.
 
 La suite du guide permet une installation manuelle.
 

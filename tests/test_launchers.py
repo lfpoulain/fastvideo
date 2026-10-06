@@ -18,6 +18,7 @@ class LauncherTests(unittest.TestCase):
                     "powershell",
                     [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"],
                 )
+                yield "cmd", [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c"]
             bash = Path(r"C:\Program Files\Git\bin\bash.exe")
             if bash.is_file():
                 yield "bash", [str(bash)]
@@ -25,7 +26,7 @@ class LauncherTests(unittest.TestCase):
             yield "bash", [shutil.which("bash")]
 
     def run_launcher(self, directory, name, command, exit_code=0, missing_python=False):
-        for script in ("setup.ps1", "setup.sh"):
+        for script in ("setup.ps1", "setup.sh", "start.cmd"):
             shutil.copyfile(ROOT / script, directory / script)
         tools = directory / "tools"
         tools.mkdir(exist_ok=True)
@@ -41,7 +42,7 @@ class LauncherTests(unittest.TestCase):
         arguments = (
             [str(directory / "setup.ps1"), "-Python", python]
             if name == "powershell"
-            else [str(directory / "setup.sh")]
+            else [str(directory / ("start.cmd" if name == "cmd" else "setup.sh"))]
         )
         return subprocess.run(
             [*command, *arguments],
@@ -63,9 +64,15 @@ class LauncherTests(unittest.TestCase):
                     directory.mkdir()
                     result = self.run_launcher(directory, name, command, code)
                     self.assertEqual(result.returncode, code, result.stdout + result.stderr)
-                    logs = list((directory / "logs").glob("startup-*.log"))
+                    logs = [
+                        path
+                        for path in (directory / "logs").glob("startup-*.log")
+                        if path.name != "startup-latest.log"
+                    ]
                     self.assertEqual(len(logs), 1)
                     content = logs[0].read_text(encoding="utf-8-sig", errors="replace")
+                    latest = directory / "logs" / "startup-latest.log"
+                    self.assertEqual(latest.read_bytes(), logs[0].read_bytes())
                     self.assertIn("child stdout", content)
                     self.assertIn("child stderr", content)
                     self.assertIn(f"Exit code: {code}", content)
@@ -77,12 +84,45 @@ class LauncherTests(unittest.TestCase):
                 directory = Path(temp)
                 result = self.run_launcher(directory, name, command, missing_python=True)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                logs = list((directory / "logs").glob("startup-*.log"))
+                logs = [
+                    path
+                    for path in (directory / "logs").glob("startup-*.log")
+                    if path.name != "startup-latest.log"
+                ]
                 self.assertEqual(len(logs), 1)
                 content = logs[0].read_text(encoding="utf-8-sig", errors="replace")
                 self.assertIn("missing-python", content)
                 self.assertIn("Exit code: 1", content)
                 self.assertNotIn("child stdout", content)
+                self.assertEqual(
+                    (directory / "logs" / "startup-latest.log").read_bytes(), logs[0].read_bytes()
+                )
+
+    def test_latest_log_is_replaced_automatically_and_previous_run_is_archived(self):
+        for name, command in self.launchers():
+            with self.subTest(launcher=name), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                first = self.run_launcher(directory, name, command, exit_code=7)
+                self.assertEqual(first.returncode, 7)
+                second = self.run_launcher(directory, name, command)
+                self.assertEqual(second.returncode, 0)
+                latest = (directory / "logs" / "startup-latest.log").read_text(
+                    encoding="utf-8-sig", errors="replace"
+                )
+                self.assertIn("Exit code: 0", latest)
+                self.assertNotIn("Exit code: 7", latest)
+                archives = [
+                    path
+                    for path in (directory / "logs").glob("startup-*.log")
+                    if path.name != "startup-latest.log"
+                ]
+                self.assertEqual(len(archives), 2)
+                self.assertTrue(
+                    any(
+                        "Exit code: 7" in path.read_text(encoding="utf-8-sig", errors="replace")
+                        for path in archives
+                    )
+                )
 
 
 if __name__ == "__main__":

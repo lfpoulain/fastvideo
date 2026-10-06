@@ -84,21 +84,22 @@ main() {
 
 task_log_name="startup-$(date +%Y%m%d-%H%M%S)-$$.log"
 task_log_dir="$ROOT/logs"
-if ! mkdir -p -- "$task_log_dir" || ! : > "$task_log_dir/$task_log_name"; then
+if ! mkdir -p -- "$task_log_dir" || ! : > "$task_log_dir/startup-latest.log"; then
     task_log_dir="${TMPDIR:-/tmp}/fastvideo-logs"
     mkdir -p -- "$task_log_dir"
-    : > "$task_log_dir/$task_log_name"
+    : > "$task_log_dir/startup-latest.log"
 fi
 task_log="$task_log_dir/$task_log_name"
-printf 'Startup log: %s\n' "$task_log"
+task_latest_log="$task_log_dir/startup-latest.log"
+printf 'Startup log: %s\n' "$task_latest_log"
 set +e
 (
     set -eE
-    trap 'task_exit=$?; printf "End: %s - Exit code: %s\nStartup log: %s\n" "$(date -Iseconds)" "$task_exit" "$task_log"' EXIT
+    trap 'task_exit=$?; printf "End: %s - Exit code: %s\nStartup log: %s\n" "$(date -Iseconds)" "$task_exit" "$task_latest_log"' EXIT
     trap 'printf "Launcher failed at line %s (code %s)\n" "$LINENO" "$?" >&2' ERR
     printf 'Start: %s\nBash: %s\nProject: %s\n' "$(date -Iseconds)" "$BASH_VERSION" "$ROOT"
     main "$@"
-) 2>&1 | tee -a "$task_log"
+) 2>&1 | tee -a "$task_log" "$task_latest_log"
 task_codes=("${PIPESTATUS[@]}")
 if [[ "${task_codes[0]}" -ne 0 ]]; then
     exit "${task_codes[0]}"

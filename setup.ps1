@@ -20,6 +20,7 @@ $env:PYTHONDONTWRITEBYTECODE = '1'
 $taskRoot = $PSScriptRoot
 $taskExitCode = 1
 $taskTranscriptStarted = $false
+$taskArchiveLog = $null
 
 function Invoke-FastVideoNative([string]$Executable, [string[]]$Arguments) {
     # Windows PowerShell 5 treats redirected native stderr as ErrorRecords.
@@ -56,7 +57,7 @@ try {
     $taskDefaultLog = -not $LogFile
     if ($taskDefaultLog) {
         $taskLogName = 'startup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + "-$PID.log"
-        $LogFile = Join-Path $taskRoot "logs\$taskLogName"
+        $LogFile = Join-Path $taskRoot 'logs\startup-latest.log'
     }
     $LogFile = [IO.Path]::GetFullPath($LogFile)
     try {
@@ -64,11 +65,14 @@ try {
         Start-Transcript -LiteralPath $LogFile -Force | Out-Null
     } catch {
         if (-not $taskDefaultLog) { throw }
-        $LogFile = Join-Path ([IO.Path]::GetTempPath()) "FastVideo\logs\$taskLogName"
+        $LogFile = Join-Path ([IO.Path]::GetTempPath()) 'FastVideo\logs\startup-latest.log'
         New-Item -ItemType Directory -Path (Split-Path -Parent $LogFile) -Force | Out-Null
         Start-Transcript -LiteralPath $LogFile -Force | Out-Null
     }
     $taskTranscriptStarted = $true
+    if ($taskDefaultLog) {
+        $taskArchiveLog = Join-Path (Split-Path -Parent $LogFile) $taskLogName
+    }
     Write-Host "Startup log: $LogFile"
     Write-Host "Start: $(Get-Date -Format o)"
     Write-Host "PowerShell: $($PSVersionTable.PSVersion) - OS: $([Environment]::OSVersion)"
@@ -154,6 +158,13 @@ try {
     Write-Host "End: $(Get-Date -Format o) - Exit code: $taskExitCode"
     Write-Host "Startup log: $LogFile"
     if ($taskTranscriptStarted) { Stop-Transcript | Out-Null }
+    if ($taskArchiveLog) {
+        try {
+            Copy-Item -LiteralPath $LogFile -Destination $taskArchiveLog -Force
+        } catch {
+            Write-Host "Could not archive startup log: $($_.Exception.Message)"
+        }
+    }
     if ($taskExitCode -ne 0 -and -not $NoPause -and $Host.Name -eq 'ConsoleHost') {
         try {
             if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
