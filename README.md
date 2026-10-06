@@ -48,6 +48,9 @@ Les poids sont téléchargés depuis les dépôts officiels au premier usage de 
 
 Après le clone, un seul script prépare Python **3.12**, crée `.venv`, installe PyTorch
 pour **AMD ROCm, NVIDIA CUDA ou CPU**, vérifie les dépendances puis ouvre l'app.
+Chaque lancement écrit aussi un journal `logs/startup-*.log`, y compris les erreurs
+avant l'ouverture de l'interface. PowerShell attend Entrée après une erreur dans
+une console interactive. Voir le [dépannage du lancement](docs/installation.md#si-la-fenêtre-se-ferme-trop-vite).
 Aux lancements suivants, il réutilise l'environnement. Les pilotes GPU doivent être
 installés sur le PC ; voir les [prérequis AMD / NVIDIA](docs/installation.md).
 

@@ -9,6 +9,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from vision import DEFAULT_MODEL, MODELS
@@ -61,6 +62,8 @@ def probe(python):
     result = subprocess.run(
         [str(python), "-c", PROBE], capture_output=True, text=True, encoding="utf-8", timeout=90
     )
+    if result.stderr.strip():
+        print(f"Diagnostic du runtime {python}:\n{result.stderr}", flush=True)
     if result.returncode:
         raise RuntimeError(
             f"L'environnement {python.parent.parent} ne démarre pas.\n{result.stderr}"
@@ -191,7 +194,17 @@ def torch_command(python, backend, arch):
 
 def run(command):
     print(f"\n> {shlex.join(map(str, command))}", flush=True)
-    subprocess.run(command, cwd=ROOT, check=True)
+    started = time.monotonic()
+    try:
+        subprocess.run(command, cwd=ROOT, check=True)
+    except subprocess.CalledProcessError as error:
+        print(
+            f"Commande échouée · code {error.returncode} · {time.monotonic() - started:.1f} s",
+            flush=True,
+        )
+        raise
+    else:
+        print(f"Commande terminée · code 0 · {time.monotonic() - started:.1f} s", flush=True)
 
 
 def setup(venv, backend, arch, installed, dry_run):
@@ -275,13 +288,19 @@ def main(argv=None):
     if platform.system() not in ("Windows", "Linux"):
         parser.error("L'installation automatique prend en charge Windows et Linux.")
     venv = args.venv.resolve()
+    print(f"Système : {platform.platform()} · {platform.machine()}", flush=True)
+    print(f"Python : {sys.version.split()[0]} · {sys.executable}", flush=True)
+    print(f"Projet : {ROOT}\nEnvironnement : {venv}", flush=True)
     installed = probe(python_in(venv))
+    print("Runtime existant : " + json.dumps(installed, ensure_ascii=False), flush=True)
     if installed and installed["python"] != [3, 12]:
         parser.error(
             f"{venv} utilise un autre Python. "
             "Choisis un nouveau dossier avec --venv (PowerShell : -Venv)."
         )
-    backend, arch = select_backend(args.backend, args.amd_arch, installed, hardware())
+    detected = hardware()
+    print("Matériel détecté : " + json.dumps(detected, ensure_ascii=False), flush=True)
+    backend, arch = select_backend(args.backend, args.amd_arch, installed, detected)
     print(
         f"FastVideo · Python 3.12 · {backend.upper()}" + (f" · {arch}" if arch else ""), flush=True
     )
@@ -290,6 +309,7 @@ def main(argv=None):
         extra = args.app_args[1:] if args.app_args[:1] == ["--"] else args.app_args
         command = [
             str(python),
+            "-u",
             str(ROOT / "app.py"),
             "--model",
             args.model,

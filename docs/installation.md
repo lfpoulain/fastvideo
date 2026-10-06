@@ -54,8 +54,10 @@ fixé à la version 0.12.23. Aucune activation du venv n'est nécessaire.
 | `-Backend cpu` | `--backend cpu` | Paquets CPU, y compris sur une machine équipée d'un GPU. |
 | `-Model lfm-450m` | `--model lfm-450m` | Modèle sélectionné à l'ouverture ; les douze choix restent disponibles. |
 | `-SetupOnly` | `--setup-only` | Installation et vérification sans ouvrir la fenêtre. |
-| `-DryRun` | `--dry-run` | Affichage du plan sans écrire de fichiers ni installer. |
+| `-DryRun` | `--dry-run` | Affichage du plan sans installer ; seul le journal de démarrage est écrit. |
 | `-Venv 'autre-dossier'` | `--venv autre-dossier` | Utiliser un autre environnement au lieu de `.venv`. |
+| `-LogFile 'mon-lancement.log'` | — | Choisir le fichier du journal PowerShell. |
+| `-NoPause` | — | Ne pas attendre Entrée après une erreur lors d'un lancement interactif. |
 | `-AppArgs @('--interval', '0.5')` | `-- --interval 0.5` | Options supplémentaires transmises à `app.py`. |
 
 Pour imposer un interpréteur, utilise `-Python 'C:\chemin\python.exe'` sous
@@ -98,6 +100,43 @@ niveau du système. Sous Linux, si OpenCV signale une bibliothèque absente, ins
 les paquets correspondants, par exemple `libgl1` et `libglib2.0-0` sur Ubuntu.
 Les scripts n'installent pas les poids de tous les modèles : seul le modèle utilisé
 est téléchargé à sa première analyse.
+
+### Si la fenêtre se ferme trop vite
+
+Chaque exécution des lanceurs crée un journal `logs/startup-<date>-<pid>.log`
+dans le dépôt, dès le début du script, avant la recherche de Python. Il contient
+le système, l'interpréteur choisi, les vérifications des candidats Python,
+le runtime PyTorch existant, la détection du matériel, les commandes exécutées,
+leurs sorties et erreurs, puis le code de sortie final. La sortie reste visible
+dans le terminal. Les journaux restent locaux et sont exclus de Git.
+
+Sous PowerShell, une erreur garde la console interactive ouverte jusqu'à Entrée.
+Les exécutions avec entrée redirigée ne bloquent pas ; `-NoPause` désactive aussi
+cette attente. Le journal reste disponible après fermeture de la fenêtre.
+Si le dossier du dépôt ne permet pas d'écrire le journal, le lanceur utilise
+`%TEMP%\FastVideo\logs` sous Windows, ou `${TMPDIR:-/tmp}/fastvideo-logs` sous Bash.
+Le chemin exact est affiché au début et à la fin.
+
+Sur le PC distant, ouvre un terminal PowerShell dans le dépôt puis lance :
+
+```powershell
+git pull
+powershell -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -LogFile .\logs\startup-remote.log
+```
+
+Ce fichier choisi est remplacé à chaque exécution. Pour lire sa fin :
+
+```powershell
+Get-Content .\logs\startup-remote.log -Tail 100
+```
+
+Le journal du lanceur complète `logs/fastvideo.log`, écrit une fois l'interface
+initialisée. Il capture aussi les erreurs d'importation et d'ouverture de Tk
+émises par l'app lancée depuis le script. Un lancement direct de `app.py` ne crée
+pas ce journal du lanceur. Si PowerShell refuse d'exécuter le script avant son
+démarrage (politique d'exécution ou paramètres invalides), aucun journal ne peut
+encore être créé ; copie alors le message du terminal. La commande ci-dessus
+fixe la politique d'exécution pour ce processus.
 
 La suite du guide permet une installation manuelle.
 
