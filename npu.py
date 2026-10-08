@@ -9,6 +9,7 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -28,23 +29,130 @@ NPU_MODELS = {
 NPU_INSTALL_URL = "https://fastflowlm.com/docs/install_win/"
 
 
+def windows_flm_locations():
+    """Lire le registre actuel, même si le processus a hérité d'un ancien PATH."""
+    try:
+        import winreg
+    except ImportError:
+        return []
+
+    locations = []
+
+    def value(key, name):
+        try:
+            return winreg.QueryValueEx(key, name)[0]
+        except OSError:
+            return ""
+
+    for hive, environment in (
+        (winreg.HKEY_CURRENT_USER, "Environment"),
+        (
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+        ),
+    ):
+        try:
+            with winreg.OpenKey(hive, environment) as key:
+                locations.extend(str(value(key, "Path")).split(";"))
+        except OSError:
+            pass
+        for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
+            access = winreg.KEY_READ | view
+            try:
+                with winreg.OpenKey(
+                    hive,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\flm.exe",
+                    0,
+                    access,
+                ) as key:
+                    locations.append(value(key, ""))
+            except OSError:
+                pass
+            try:
+                with winreg.OpenKey(
+                    hive,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    0,
+                    access,
+                ) as uninstall:
+                    index = 0
+                    while True:
+                        try:
+                            name = winreg.EnumKey(uninstall, index)
+                        except OSError:
+                            break
+                        index += 1
+                        try:
+                            with winreg.OpenKey(uninstall, name) as key:
+                                if not re.search(
+                                    r"fastflowlm|\bflm\b", str(value(key, "DisplayName")), re.I
+                                ):
+                                    continue
+                                locations.extend(
+                                    (
+                                        value(key, "InstallLocation"),
+                                        value(key, "Inno Setup: App Path"),
+                                    )
+                                )
+                                icon = str(value(key, "DisplayIcon"))
+                                match = re.match(
+                                    r'^"([^"]+\.exe)"|^(.+?\.exe)(?:,\s*-?\d+)?$', icon, re.I
+                                )
+                                if match:
+                                    locations.append(match.group(1) or match.group(2))
+                        except OSError:
+                            continue
+            except OSError:
+                pass
+    return [location for location in locations if isinstance(location, str) and location.strip()]
+
+
+def flm_candidates(location):
+    root = Path(os.path.expandvars(str(location).strip().strip('"'))).expanduser()
+    if root.name.lower() in ("flm.exe", "flm") and root.is_file():
+        yield root
+    for name in ("flm.exe", "bin/flm.exe", "flm", "bin/flm"):
+        yield root / name
+
+
 def find_flm(filename=None):
+    filename = filename or os.environ.get("FASTVIDEO_FLM_PATH")
     if filename:
-        candidate = Path(filename).expanduser().resolve()
+        candidate = (
+            Path(os.path.expandvars(str(filename).strip().strip('"'))).expanduser().resolve()
+        )
         if candidate.is_file():
             return str(candidate)
+        for executable in flm_candidates(candidate):
+            if executable.is_file():
+                return str(executable.resolve())
         raise RuntimeError(f"Exécutable FastFlowLM introuvable : {candidate}")
     if executable := shutil.which("flm"):
         return executable
-    # Une installation MSI récente peut ne pas être visible dans le PATH de l'app.
-    for root in (os.environ.get("ProgramFiles"), os.environ.get("LOCALAPPDATA")):
+
+    locations = windows_flm_locations() if sys.platform == "win32" else []
+    for variable in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
+        root = os.environ.get(variable)
         if root:
-            candidate = Path(root) / "flm" / "flm.exe"
+            locations.extend(
+                Path(root) / name
+                for name in ("flm", "FastFlowLM", "Programs/flm", "Programs/FastFlowLM")
+            )
+    if sys.platform != "win32":
+        locations.extend(("/opt/fastflowlm", "~/.local/bin"))
+    seen = set()
+    for location in locations:
+        for candidate in flm_candidates(location):
+            identity = os.path.normcase(str(candidate))
+            if identity in seen:
+                continue
+            seen.add(identity)
             if candidate.is_file():
-                return str(candidate)
+                return str(candidate.resolve())
     raise RuntimeError(
-        "FastFlowLM absent. Clique sur « Installer FastFlowLM… », installe le moteur "
-        "et le pilote NPU AMD, puis relance FastVideo."
+        "FastFlowLM introuvable dans le PATH et les emplacements d’installation. "
+        "S’il est déjà installé, clique sur « Choisir flm.exe… ». "
+        "Sinon, utilise « Installer FastFlowLM… »."
     )
 
 
@@ -76,11 +184,13 @@ class NpuVision:
         # Pas de proxy système ni de redirection HTTP pour les images de webcam.
         self.opener = build_opener(ProxyHandler({}), LocalRedirectHandler())
         started = time.perf_counter()
+        self._emit("check", "Recherche de l’installation FastFlowLM…")
         self.executable = find_flm(executable)
         # La fenêtre peut être fermée pendant une préparation dans un thread
         # daemon. Arrêter aussi les processus enfants à la sortie de Python.
         atexit.register(self.close)
         try:
+            self._emit("diagnostic", f"FastFlowLM détecté · {self.executable}")
             self._emit("check", "Vérification du NPU AMD et de son pilote…")
             self._command(["validate"], timeout=60)
             self._emit("load", f"Préparation NPU · {self.tag} · téléchargement si nécessaire…")

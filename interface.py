@@ -214,6 +214,13 @@ def build_interface(app):
         state="normal" if app.device_key() == "npu" else "disabled",
     )
     app.npu_install_button.pack(fill="x", pady=(0, 10))
+    app.npu_path_button = ttk.Button(
+        settings,
+        text="Choisir flm.exe…",
+        command=app.choose_npu_executable,
+        state="normal" if app.device_key() == "npu" else "disabled",
+    )
+    app.npu_path_button.pack(fill="x", pady=(0, 10))
     app.rocm_toggle = ttk.Checkbutton(
         settings,
         text="Attention ROCm expérimentale",

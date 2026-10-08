@@ -22,6 +22,7 @@ Un téléchargement ou un chargement initial doit se terminer avant le changemen
 | **Charger le modèle** | Prépare les fichiers et charge le modèle sans ouvrir la webcam. |
 | **Moteur d’analyse** | Automatique GPU/CPU, ROCm, CUDA, CPU ou NPU AMD. Le changement libère le moteur précédent au prochain chargement. |
 | **Installer FastFlowLM…** | Ouvre le guide d'installation du moteur et du pilote NPU AMD. |
+| **Choisir flm.exe…** | Sélectionne une installation existante si la détection automatique échoue ; le choix vaut pour la session. |
 | **Résolution envoyée à l’IA** | Change le plafond de dimensions à la prochaine analyse, sans réouvrir la webcam ni recharger le modèle. |
 | **Attention ROCm expérimentale** | Autorise les kernels AMD expérimentaux ; à cocher avant le premier chargement. |
 | **Analyser en direct / Mettre en pause** | Lance les analyses répétées ou arrête les nouvelles générations. |
@@ -108,7 +109,7 @@ Exemples de consignes :
 | `--capture-format` | `auto` | `auto` (essaie MJPG en HD), `mjpg` ou `yuy2`. |
 | `--analysis-resolution` | `640x480` | Plafond pour l'image IA : `256x256`, `320x240`, `640x480`, `960x540`, `1280x720`, `1920x1080`, `original`. |
 | `--device` | `auto` | `auto`, `cuda`, `rocm`, `cpu` ou `npu`. |
-| `--flm-path` | recherche automatique | Chemin de l'exécutable FastFlowLM si absent du PATH et des dossiers Windows usuels. |
+| `--flm-path` | recherche automatique | Exécutable ou dossier FastFlowLM à utiliser explicitement. |
 | `--rocm-experimental-attention` | désactivé | Autorise au lancement les kernels d'attention ROCm expérimentaux. |
 | `--interval` | `2` | Délai minimum entre les départs des analyses, de 0,5 à 30 secondes. |
 | `--frames` | `1` | Jusqu'à 3 images récentes ; FastVLM et Moondream utilisent la dernière. |
@@ -136,6 +137,19 @@ Choisis **NPU AMD · FastFlowLM** dans la fenêtre. Si nécessaire, clique sur
 Sous Windows, il faut Windows 11 et un NPU AMD XDNA 2 ; le guide demande un pilote
 NPU au moins égal à 32.0.203.311. Utilise un pilote récent compatible avec ton PC.
 Sous Linux, suis les prérequis XRT/amdxdna du guide FastFlowLM.
+
+La détection cherche dans le PATH, les dossiers d'installation usuels et leurs
+sous-dossiers `bin`. Sous Windows, elle lit aussi le PATH enregistré actuellement
+dans le registre, les entrées App Paths et les informations de désinstallation
+utilisateur/système, dans les deux vues 32 et 64 bits. Elle peut ainsi retrouver
+une installation personnalisée même si FastVideo a hérité d'un ancien PATH.
+Le chemin retenu est écrit dans le journal avant la validation du NPU.
+
+Si FLM est installé mais reste introuvable, clique sur **Choisir flm.exe…**,
+sélectionne son exécutable, puis clique sur **Charger le modèle**. Il n'est pas
+nécessaire de réinstaller FLM ni de lancer une commande. Ce choix vaut pour la
+session ; pour un chemin permanent, utilise la variable `FASTVIDEO_FLM_PATH`
+ou l'option `--flm-path`, qui acceptent l'exécutable ou son dossier d'installation.
 
 FastVideo démarre son propre processus FLM en arrière-plan, sur `127.0.0.1` et
 un port privé. Il prépare les fichiers via `flm pull` et réutilise le cache FLM
@@ -214,6 +228,7 @@ est plafonnée et MiniCPM utilise une seule vue avec un downsampling de 16×.
 | Webcam introuvable ou occupée | Ferme les autres apps utilisant la caméra, puis essaie un autre numéro. |
 | L'app affiche `CPU` | Vérifie `torch.cuda.is_available()` et la distribution PyTorch installée. |
 | `--device rocm` échoue | Vérifie que `torch.version.hip` contient une version et que le GPU est disponible. |
+| FastFlowLM installé mais introuvable | Choisis **NPU AMD**, puis **Choisir flm.exe…**, sélectionne l'exécutable installé et recharge le modèle. |
 | Erreur en mode hors ligne | Charge une première fois ce modèle avec une connexion Internet. |
 | Mémoire GPU insuffisante | Essaie SmolVLM2 ou LFM 450M, une image et une réponse courte ; ferme les autres tâches GPU. |
 | `tkinter` absent sous Linux | Installe Tk pour la version de Python utilisée. |

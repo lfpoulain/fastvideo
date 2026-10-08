@@ -189,6 +189,19 @@ Une génération réelle LFM 450M en cache a aussi été exécutée après ces c
 sur RTX 4090 : réponse non vide et second passage à 0,25 s. Cela vérifie le maintien
 du moteur PyTorch ; ce résultat ne mesure pas le NPU.
 
+### Détection de FastFlowLM — 8 octobre 2026
+
+La suite contient désormais **58 tests**. Les nouveaux cas vérifient les dossiers
+avec espaces et sous-dossier `bin`, un PATH de processus ancien, les valeurs de
+registre Windows simulées (PATH actuel, App Paths, InstallLocation et DisplayIcon),
+les chemins explicites et `FASTVIDEO_FLM_PATH`. Les autres applications présentes
+dans les entrées de désinstallation sont ignorées.
+Un test Tkinter utilise le bouton **Choisir flm.exe…**, vérifie qu'annuler la boîte
+ne change pas le moteur et que sélectionner un fichier transmet ce chemin au
+prochain chargement en libérant l'ancien moteur. La validation NPU réelle reste
+à effectuer sur le PC concerné ; aucun téléchargement de modèle n'est nécessaire
+pour les tests de détection.
+
 Les lanceurs sont testés dans un dossier avec des espaces : sortie standard,
 erreurs du processus enfant, codes 0 et 7, et échec avant l'installateur quand
 Python est introuvable. Les fichiers de journal sont lus pour vérifier ces

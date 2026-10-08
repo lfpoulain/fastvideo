@@ -1,3 +1,4 @@
+import gc
 import os
 import tempfile
 import tkinter as tk
@@ -11,6 +12,11 @@ from vision import MODEL_BY_KEY
 
 
 class InterfaceTests(unittest.TestCase):
+    def tearDown(self):
+        # Collecter les anciennes fenêtres sur le thread Tk, avant qu'un worker
+        # du test suivant ne déclenche le GC et les destructeurs des StringVar.
+        gc.collect()
+
     def test_npu_filters_models_and_resolution_changes_keep_engine_and_full_size_preview(self):
         from PIL import Image
 
@@ -46,6 +52,7 @@ class InterfaceTests(unittest.TestCase):
                 self.assertEqual(app.selected_frames(), 1)
                 self.assertTrue(app.rocm_toggle.instate(["disabled"]))
                 self.assertFalse(app.npu_install_button.instate(["disabled"]))
+                self.assertFalse(app.npu_path_button.instate(["disabled"]))
                 with patch("app.NpuVision", return_value=engine), patch("app.LocalVision") as gpu:
                     app.load_button.invoke()
                     app.worker.join(timeout=3)
@@ -69,8 +76,48 @@ class InterfaceTests(unittest.TestCase):
                 self.assertEqual(len(app.available_models), 12)
                 self.assertEqual(app.model_key(), "qwen-0.8b")
                 self.assertFalse(app.rocm_toggle.instate(["disabled"]))
+                self.assertTrue(app.npu_path_button.instate(["disabled"]))
             finally:
                 app.camera = None  # Capture simulée : le thread n'a pas été démarré.
+                app.close()
+
+    def test_npu_file_picker_replaces_loaded_engine_without_a_terminal_command(self):
+        try:
+            root = tk.Tk()
+        except tk.TclError as error:
+            self.skipTest(f"Affichage Tk indisponible : {error}")
+        root.withdraw()
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(
+                model="qwen-0.8b",
+                camera=0,
+                interval=2,
+                frames=1,
+                max_tokens=40,
+                device="npu",
+                offline=False,
+                log_file=Path(directory) / "test.log",
+            )
+            app = App(root, args)
+            previous = SimpleNamespace(close=Mock())
+            app.engine = previous
+            try:
+                chosen = str(Path(directory) / "Custom install" / "flm.exe")
+                with patch("app.filedialog.askopenfilename", return_value=""):
+                    app.npu_path_button.invoke()
+                previous.close.assert_not_called()
+                with patch("app.filedialog.askopenfilename", return_value=chosen):
+                    app.npu_path_button.invoke()
+                self.assertEqual(args.flm_path, Path(chosen))
+                previous.close.assert_called_once()
+                self.assertIsNone(app.engine)
+                self.assertIn(chosen, "\n".join(app.log_lines))
+                engine = SimpleNamespace(spec=MODEL_BY_KEY["qwen-0.8b"], close=Mock())
+                with patch("app.NpuVision", return_value=engine) as load:
+                    app.load_button.invoke()
+                    app.worker.join(timeout=3)
+                self.assertEqual(load.call_args.kwargs["executable"], Path(chosen))
+            finally:
                 app.close()
 
     def test_rocm_checkbox_applies_before_loading_and_locks_for_the_session(self):

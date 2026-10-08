@@ -183,7 +183,10 @@ les trois Qwen3.5 compatibles. Le bouton **Installer FastFlowLM…** ouvre le gu
 officiel ; installe une fois le moteur et le pilote NPU adapté à ton PC, puis relance
 l'app. FastVideo vérifie le NPU, prépare les poids adaptés et démarre son moteur
 local automatiquement, sans commande supplémentaire. Les étapes apparaissent dans
-le journal. Commence avec Qwen3.5 0,8B et une résolution IA de 320×240 ou 640×480.
+le journal. La détection prend aussi en compte les chemins enregistrés par Windows
+et les installations personnalisées ; **Choisir flm.exe…** permet de sélectionner
+un exécutable existant si nécessaire. Le chemin retenu apparaît dans les logs.
+Commence avec Qwen3.5 0,8B et une résolution IA de 320×240 ou 640×480.
 
 Ce mode vise les **NPU XDNA 2 des Ryzen AI 300 / 400 / Max**. Les autres modèles
 restent accessibles en GPU/CPU : aucune version vision NPU prête de MiniCPM-V 4.6,

@@ -357,6 +357,10 @@ class App:
             state="disabled" if device == "npu" or self.runtime_locked else "normal"
         )
         self.npu_install_button.configure(state="normal" if device == "npu" else "disabled")
+        busy = self.worker is not None and self.worker.is_alive()
+        self.npu_path_button.configure(
+            state="normal" if device == "npu" and not busy else "disabled"
+        )
         self.backend_text.set("NPU AMD" if device == "npu" else device.upper())
         self.record("Moteur sélectionné · " + DEVICE_LABELS[device])
         self.change_model()
@@ -368,6 +372,25 @@ class App:
         self.record(
             "Guide FastFlowLM ouvert · installer le moteur et le pilote NPU, puis relancer l’app."
         )
+
+    def choose_npu_executable(self):
+        if self.worker is not None and self.worker.is_alive():
+            return
+        filename = filedialog.askopenfilename(
+            parent=self.root,
+            title="Choisir l’exécutable FastFlowLM",
+            filetypes=[("FastFlowLM", "flm.exe flm"), ("Tous les fichiers", "*.*")],
+        )
+        if not filename:
+            return
+        self.pause_analysis()
+        if self.engine is not None:
+            self.engine.close()
+            self.engine = None
+        self.args.flm_path = Path(filename)
+        self.change_model()
+        self.record("Exécutable FastFlowLM choisi · " + filename)
+        self.status.set("Chemin FastFlowLM sélectionné. Clique sur Charger le modèle.")
 
     def change_analysis_resolution(self, event=None):
         self.session += 1
@@ -589,6 +612,9 @@ class App:
             return
         self.last_controls = current
         self.load_button.configure(state="disabled" if busy else "normal")
+        self.npu_path_button.configure(
+            state="normal" if self.device_key() == "npu" and not busy else "disabled"
+        )
         self.single_button.configure(state="normal" if ready and not busy else "disabled")
         self.analysis_button.configure(
             text="Ⅱ  Mettre en pause" if self.analyzing else "▶  Analyser en direct",
